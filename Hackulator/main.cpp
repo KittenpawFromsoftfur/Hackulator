@@ -1,6 +1,12 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include "main.h"
 #include "mainlogic.h"
 
 /* TODO
+	struct members: m_...
 	m_aNumberTypeNames to struct same as S_SIGN, so you dont have to use constructor...
 	square ("), <<, >>, %
 	#<ascii value>
@@ -15,132 +21,57 @@
 	Save file; Help output save file location --> OR <-- main parameters, so you can create a shortcut and it acts as a save file
 */
 
-int main()
+int main(int argc, char *argv[])
 {
-	int retval = 0;
-	CMainLogic mainLogic;
+	char* pParam = 0;
+	char* pParamValue = 0;
+	bool failed = false;
+	bool paramStartfullscreen = false;
 
-	retval = mainLogic.EntryPoint();
-
-	return retval;
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-/*
-	|, &, ^, ~, <<, >>
-*/
-
-/*********************************************************************************
-* @brief Entry point of the application
-*
-* @retval 0
-*********************************************************************************/
-/*int main_old()
-{
-	int i = 0;
-	int returnValue = 0;
-	int commandEntered = FALSE;
-	char aInput[256] = { 0 };
-	unsigned long long aInputValues[ARRAY_SIZE(aInput) / 2] = { 0 };
-	E_OPERATOR_TYPES aOperatorTypes[ARRAY_SIZE(aInputValues)] = { 0 };
-	unsigned long long sum = 0;
-
-	while (1)
+	// parse call parameters
+	for (int i = 1; i < argc; ++i)
 	{
-		// resets
-		memset(aInput, 0, ARRAY_SIZE(aInput));
+		// determine param
+		pParam = argv[i];
 
-		for (i = 0; i < ARRAY_SIZE(aInputValues); ++i)
-			aInputValues[i] = 0;
+		// determine param value
+		pParamValue = 0;
 
-		for (i = 0; i < ARRAY_SIZE(aOperatorTypes); ++i)
-			aOperatorTypes[i] = 0;
+		if (argc > i + 1)
+			pParamValue = argv[i + 1];
 
-		// get user input
-		returnValue = scanf(" %100[^\n]", aInput);
-
-		if (returnValue <= 0)
+		// compare params
+		if (strncmp(pParam, MAINPARAM_STARTFULLSCREEN, MAX_LEN_MAINPARAMS) == 0)
 		{
-			printf("%s: Error scanning input\n", __FUNCTION__);
-			continue;
-		}
-
-		// evaluate command and call associated function
-		commandEntered = FALSE;
-
-		for (i = 0; i < ARRAY_SIZE(gasConsoleCommands); ++i)
-		{
-			if (strncmp_nocase(aInput, gasConsoleCommands[i].aString, ARRAY_SIZE(gasConsoleCommands[0].aString)) == 0)
+			if (pParamValue)
 			{
-				commandEntered = TRUE;
-				gasConsoleCommands[i].pFunction(FALSE);
-				break;
+				paramStartfullscreen = atoi(pParamValue);
+				i++;
+			}
+			else
+			{
+				failed = true;
 			}
 		}
-
-		// evaluate input
-		if (!commandEntered)
+		else
 		{
-			bitconv_filterSpaces(aInput);
-
-			returnValue = bitconv_parseChainedInput(aInput, aInputValues, aOperatorTypes, ARRAY_SIZE(aInputValues));
-
-			// bubble sort values for subtractions
-			for (int i = 0; i < ARRAY_SIZE(aInputValues) - 1; i++)
-			{
-				// Last i elements are already in place
-				for (int j = 0; j < ARRAY_SIZE(aInputValues) - i - 1; j++)
-					if (aInputValues[j] < aInputValues[j + 1])
-						swapUll(&aInputValues[j], &aInputValues[j + 1]);
-			}
-
-			sum = aInputValues[0];
-
-			for (i = 1; i < returnValue; ++i)
-			{
-				if (aOperatorTypes[i - 1] == E_OPTYPE_ADD)
-					sum += aInputValues[i];
-				else
-					sum -= aInputValues[i];
-			}
-
-			bitconv_showInputResult(sum);
+			failed = true;
 		}
+
+		if (failed)
+			break;
 	}
 
-	return 0;
-}*/
+	if (failed)
+	{
+		printf("\nInvalid parameters, usage:");
+		printf("\n\n" MAINPARAMHELP_HEADER);
+		printf("\n%s... %s", MAINPARAM_STARTFULLSCREEN, MAINPARAM_STARTFULLSCREEN_DESC);
+		printf("\n" MAINPARAMHELP_HEADER "\n\n");
+		return ERROR;
+	}
+
+	CMainLogic mainLogic(paramStartfullscreen);
+
+	return mainLogic.EntryPoint();
+}

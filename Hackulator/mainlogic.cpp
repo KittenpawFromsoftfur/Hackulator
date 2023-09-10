@@ -1,12 +1,13 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <Windows.h>
 
 #include "mainlogic.h"
 #include "core.h"
 #include "log.h"
 
-CMainLogic::CMainLogic()
+CMainLogic::CMainLogic(bool StartFullscreen)
 {
 	m_ExitApplication = false;
 	m_DefaultNumberType = NUT_DECIMAL;
@@ -17,6 +18,10 @@ CMainLogic::CMainLogic()
 	strncpy(m_aNumberTypeNames[NUT_OCTAL], "octal", ARRAYSIZE(m_aNumberTypeNames[0]));
 	strncpy(m_aNumberTypeNames[NUT_DECIMAL], "decimal", ARRAYSIZE(m_aNumberTypeNames[0]));
 	strncpy(m_aNumberTypeNames[NUT_HEXADECIMAL], "hexadecimal", ARRAYSIZE(m_aNumberTypeNames[0]));
+
+	m_StartFullscreen = StartFullscreen;
+	if (m_StartFullscreen)
+		ShowWindow(GetConsoleWindow(), SW_MAXIMIZE);
 }
 
 CMainLogic::~CMainLogic()
@@ -764,8 +769,8 @@ int CMainLogic::ComHelp(E_COMMANDS ID)
 	{
 		m_Log.Log(CMAINLOGIC_COMHELP_HEADER_HELP);
 		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX "Enter a calculation or one of the commands below.");
+		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX "Max. number size is 64 bit.");
 		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX "All input is case insensitive.");
-		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX "Max range is " CMAINLOGIC_MAX_RANGE_ALLOWED " bit.");
 		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX "Default number type is %s (when no prefix is given).", m_aNumberTypeNames[m_DefaultNumberType]);
 		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX "Save file location is \"%s\"", "...");
 		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX "Number prefixes: " NUMPREFSTR_BINARY "=%s, " NUMPREFSTR_DUAL "=%s, " NUMPREFSTR_OCTAL "=%s, " NUMPREFSTR_DECIMAL "=%s, " NUMPREFSTR_HEXADECIMAL "=%s. Example: '" NUMPREFSTR_HEXADECIMAL "DEADBEEF'", m_aNumberTypeNames[NUT_BINARY], m_aNumberTypeNames[NUT_DUAL], m_aNumberTypeNames[NUT_OCTAL], m_aNumberTypeNames[NUT_DECIMAL], m_aNumberTypeNames[NUT_HEXADECIMAL]);

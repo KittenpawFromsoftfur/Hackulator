@@ -131,14 +131,9 @@
     <ClInclude Include="core.h" />
     <ClInclude Include="functions.h" />
     <ClInclude Include="log.h" />
+    <ClInclude Include="main.h" />
     <ClInclude Include="mainlogic.h" />
     <ClInclude Include="resource.h" />
-  </ItemGroup>
-  <ItemGroup>
-    <ResourceCompile Include="Hackulator.rc" />
-  </ItemGroup>
-  <ItemGroup>
-    <Image Include="..\icon\icon.ico" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="bitconverter.c" />
@@ -147,6 +142,12 @@
     <ClCompile Include="log.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="mainlogic.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="Hackulator.rc" />
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="..\icon\icon.ico" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

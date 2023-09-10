@@ -17,8 +17,6 @@
 
 #define CMAINLOGIC_NUMBERTYPENAMES_LENGTH 128
 
-#define CMAINLOGIC_MAX_RANGE_ALLOWED "64"
-
 #define CMAINLOGIC_COMSETDEFAULT_BINARY "binary"
 #define CMAINLOGIC_COMSETDEFAULT_DUAL "dual"
 #define CMAINLOGIC_COMSETDEFAULT_OCTAL "octal"
@@ -49,7 +47,7 @@
 class CMainLogic
 {
 public:
-    CMainLogic();
+    CMainLogic(bool StartFullscreen);
     ~CMainLogic();
     int EntryPoint();
 	void RequestApplicationExit();
@@ -131,6 +129,7 @@ private:
 	int ComSetdefault(const char *paType);
 	int ComClearscreen();
 
+	bool m_StartFullscreen;
 	bool m_ExitApplication;
 	E_NUMBERTYPES m_DefaultNumberType;
     CLog m_Log;
