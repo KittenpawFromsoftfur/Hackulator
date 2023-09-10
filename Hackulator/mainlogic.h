@@ -1,6 +1,7 @@
 #pragma once
 
 #include "log.h"
+#include "savefile.h"
 #include "core.h"
 
 #define CMAINLOGIC_CONSOLE_BUFFERLEN 256
@@ -25,12 +26,10 @@
 
 #define SIGFLAG_COMBINE (1 << 0)// combining signs such as +, -, *, /, &
 #define SIGFLAG_LOGICAL (1 << 1)// logical signs such as &, |
-#define SIGFLAG_MODIFYNUM (1 << 2)// number modifying signs such as -, ~ (tilde = invert)
+#define SIGFLAG_MODIFYNUM (1 << 2)// number modifying signs such as -, ~
 #define SIGFLAG_ALL 0xFFFFFFFFFFFFFFFF// all flags together
 
-#define SIGNUMFLAG_NEGATED (1 << 0)// negates a number
-
-#define NUMPREFSTR_BINARY "0d"
+#define NUMPREFSTR_BINARY "0b"
 #define NUMPREFSTR_DUAL "0u"
 #define NUMPREFSTR_OCTAL "0o"
 #define NUMPREFSTR_DECIMAL "0d"
@@ -47,10 +46,13 @@
 class CMainLogic
 {
 public:
-    CMainLogic(bool StartFullscreen);
+    CMainLogic(bool StartFullscreen, char *pSaveFilePath);
     ~CMainLogic();
     int EntryPoint();
 	void RequestApplicationExit();
+
+	CLog m_Log;
+	CSaveFile m_SaveFile;
 
 private:
 	enum E_COMMANDS
@@ -93,25 +95,31 @@ private:
 
 	typedef struct
 	{
-		E_COMMANDS ID;
-		char aName[CMAINLOGIC_CONSOLE_TOKEN_SIZE];
-		char aDescription[CMAINLOGIC_MAX_LEN_COMHELP_BUFFERS];
-		char aParameters[CMAINLOGIC_MAX_LEN_COMHELP_BUFFERS];
-		char aExample[CMAINLOGIC_MAX_LEN_COMHELP_BUFFERS];
+		E_COMMANDS m_ID;
+		char m_aName[CMAINLOGIC_CONSOLE_TOKEN_SIZE];
+		char m_aDescription[CMAINLOGIC_MAX_LEN_COMHELP_BUFFERS];
+		char m_aParameters[CMAINLOGIC_MAX_LEN_COMHELP_BUFFERS];
+		char m_aExample[CMAINLOGIC_MAX_LEN_COMHELP_BUFFERS];
 	} S_COMMAND;
 
 	typedef struct
 	{
-		E_SIGNS type;
-		int flags;
+		E_SIGNS m_Type;
+		int m_Flags;
 	}S_SIGN;
 
 	typedef struct
 	{
-		E_TOKENENTRYTYPES type;
-		U64 number;
-		E_SIGNS sign;
-		char aToken[CMAINLOGIC_CONSOLE_TOKEN_SIZE];
+		E_NUMBERTYPES m_Type;
+		char m_aName[CMAINLOGIC_NUMBERTYPENAMES_LENGTH];
+	}S_NUMBERTYPENAME;
+
+	typedef struct
+	{
+		E_TOKENENTRYTYPES m_Type;
+		U64 m_Number;
+		E_SIGNS m_Sign;
+		char m_aToken[CMAINLOGIC_CONSOLE_TOKEN_SIZE];
 	}S_TOKENENTRY;
 
 	int ParseInput(const char* pInput, size_t LenInput, char* paaToken, size_t AmountTokens, size_t SizeToken);
@@ -125,6 +133,7 @@ private:
 	U64 ModifyNumberBySign(U64 Number, E_SIGNS Sign);
 	int GetSignFlags(E_SIGNS Sign, int SigFlags);
 	int GetFlags(int Value, int Flags);
+	const char* GetNumberTypeName(E_NUMBERTYPES Type);
 	int ComHelp(E_COMMANDS ID);
 	int ComSetdefault(const char *paType);
 	int ComClearscreen();
@@ -132,7 +141,6 @@ private:
 	bool m_StartFullscreen;
 	bool m_ExitApplication;
 	E_NUMBERTYPES m_DefaultNumberType;
-    CLog m_Log;
 	S_COMMAND m_asCommands[AMOUNT_COMMANDS] = 
 	{
 		{ COM_HELP, "help", "Lists this help", "", "" },
@@ -150,5 +158,57 @@ private:
 		{ SIG_INVERT, SIGFLAG_MODIFYNUM },
 		{ SIG_REVERT, SIGFLAG_MODIFYNUM },
 	};
-	char m_aNumberTypeNames[AMOUNT_NUMBERTYPES][CMAINLOGIC_NUMBERTYPENAMES_LENGTH];// has to be filled in constructor, because if you shift enum variable positions and forget it, have fun finding the bug
+	S_NUMBERTYPENAME m_asNumberTypeNames[AMOUNT_NUMBERTYPES] =
+	{
+		{ NUT_INVALID, "invalid" },
+		{ NUT_BINARY, "binary" },
+		{ NUT_DUAL, "dual" },
+		{ NUT_OCTAL, "octal" },
+		{ NUT_DECIMAL, "decimal" },
+		{ NUT_HEXADECIMAL, "hexadecimal" },
+	};
 };
+
+/*
+	char gaAsciiSigns1[][32] =
+	{
+		"NUL (null)",
+		"SOH (start of heading)",
+		"STX (start of text)",
+		"ETX (end of text)",
+		"EOT (end of transmission)",
+		"ENQ (enquiry)",
+		"ACK (acknowledge)",
+		"BEL (bell)",
+		"BS (backspace)",
+		"TAB (horizontal tab)",
+		"LF (NL line feed, new line)",
+		"VT (vertical tab)",
+		"FF (NP form feed, new page)",
+		"CR (carriage return)",
+		"SO (shift out)",
+		"SI (shift in)",
+		"DLE (data link escape)",
+		"DC1 (device control 1)",
+		"DC2 (device control 2)",
+		"DC3 (device control 3)",
+		"DC4 (device control 4)",
+		"NAK (negative acknowledge)",
+		"SYN (synchronous idle)",
+		"ETB (end of trans. block)",
+		"CAN (cancel)",
+		"EM (end of medium)",
+		"SUB (substitute)",
+		"ESC (escape)",
+		"FS (file separator)",
+		"GS (group separator)",
+		"RS (record separator)",
+		"US (unit separator)",
+		"Space ( )",
+	};
+
+	char gaAsciiSigns2[][32] =
+	{
+		"DEL (delete)",
+	};
+*/

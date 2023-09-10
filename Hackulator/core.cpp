@@ -2,6 +2,7 @@
 #include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <Windows.h>
 
 #include "core.h"
 
@@ -36,7 +37,7 @@ int CCore::StringCompareNocase(const char* pSource, const char* pDest, size_t Le
 void CCore::StringRevert(char* pString)
 {
 	int i = 0;
-	const int stringLen = strlen(pString);
+	const size_t stringLen = strlen(pString);
 	char* aTemp = (char*)malloc(stringLen);
 
 	if (aTemp == NULL)
@@ -51,14 +52,65 @@ void CCore::StringRevert(char* pString)
 	free(aTemp);
 }
 
-const char* CCore::StringFindFirstCharacter(const char* pSource, const char* pCharacters)
+void CCore::StringFilter(char *pString, const char *pCharacters)
 {
+	size_t i = 0;
+	size_t ii = 0;
+	const size_t strlenCharacters = strlen(pCharacters);
+	bool foundOccurrence = false;
+	int pos = 0;
+
+	for (i = 0; i < strlen(pString); ++i)
+	{
+		foundOccurrence = false;
+
+		for (ii = 0; ii < strlenCharacters; ++ii)
+		{
+			if (pString[i] == pCharacters[ii])
+			{
+				foundOccurrence = true;
+				break;
+			}
+		}
+
+		if (!foundOccurrence)
+		{
+			pString[pos] = pString[i];
+			pos++;
+		}
+	}
+
+	pString[pos] = '\0';
+}
+
+char* CCore::StringFindFirstCharacter(char* pSource, const char* const pCharacters)
+{
+	const char* pCharactersTemp = 0;
+
 	for (; *pSource; ++pSource)
 	{
-		for (; *pCharacters; ++pCharacters)
+		for (pCharactersTemp = pCharacters; *pCharactersTemp; ++pCharactersTemp)
 		{
-			if (*pSource == *pCharacters)
-				return pCharacters;
+			if (*pSource == *pCharactersTemp)
+				return pSource;
+		}
+	}
+
+	return NULL;
+}
+
+char* CCore::StringFindLastCharacter(char* const pSource, const char* const pCharacters)
+{
+	const size_t strlenSource = strlen(pSource);
+	char* pSourceEnd = pSource + strlenSource * sizeof(char) - 1;
+	const char* pCharactersTemp = 0;
+
+	for (; *pSourceEnd; --pSourceEnd)
+	{
+		for (pCharactersTemp = pCharacters; *pCharactersTemp; ++pCharactersTemp)
+		{
+			if (*pSourceEnd == *pCharactersTemp)
+				return pSourceEnd;
 		}
 	}
 
@@ -184,4 +236,28 @@ int CCore::NumToString(U64 Number, E_NUMBERFORMAT Format, char* pResult, size_t 
 	StringRevert(pResult);
 
 	return OK;
+}
+
+U64 CCore::PowULL(U64 Base, int Exponent)
+{
+	int i = 0;
+	U64 value = 1;
+
+	for (i = 0; i < sizeof(int) * 8; ++i)
+	{
+		if (Exponent & (1 << i))
+		{
+			value *= Base;
+		}
+
+		Base *= Base;
+	}
+
+	return value;
+}
+
+void CCore::Exit(int ExitCode)
+{
+	system("pause");
+	exit(ExitCode);
 }

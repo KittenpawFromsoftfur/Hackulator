@@ -4,6 +4,8 @@
 #define OK 0
 #define ERROR -1
 #define U64 unsigned long long
+#define EXITCODE_ERROR -1
+#define MAX_LEN_FILEPATHS 256
 
 // function defines
 #define ARRAYSIZE(a) (sizeof(a) / sizeof(a[0]))
@@ -28,8 +30,12 @@ public:
     ~CCore();
     static int StringCompareNocase(const char* pSource, const char* pDest, size_t Len);
     static void StringRevert(char *pString);
-    static const char* StringFindFirstCharacter(const char* pSource, const char* pCharacters);
+    static void StringFilter(char* pString, const char* pCharacters);
+    static char* StringFindFirstCharacter(char* pSource, const char* const pCharacters);
+    static char* StringFindLastCharacter(char* const pSource, const char* const pCharacters);
     static bool CharContains(char Char, const char* pCharacters);
     static bool CheckStringFormat(const char* pNumber, E_NUMBERFORMAT Format);
     static int NumToString(U64 Number, E_NUMBERFORMAT Format, char* pResult, size_t LenResult);
+    static U64 PowULL(U64 Base, int Exponent);
+    static void Exit(int ExitCode);
 };

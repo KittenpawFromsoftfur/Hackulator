@@ -50,7 +50,7 @@
     <UseDebugLibraries>false</UseDebugLibraries>
     <PlatformToolset>v143</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
-    <CharacterSet>Unicode</CharacterSet>
+    <CharacterSet>MultiByte</CharacterSet>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ImportGroup Label="ExtensionSettings">
@@ -127,21 +127,19 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClInclude Include="bitconverter.h" />
     <ClInclude Include="core.h" />
-    <ClInclude Include="functions.h" />
     <ClInclude Include="log.h" />
     <ClInclude Include="main.h" />
     <ClInclude Include="mainlogic.h" />
     <ClInclude Include="resource.h" />
+    <ClInclude Include="savefile.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="bitconverter.c" />
     <ClCompile Include="core.cpp" />
-    <ClCompile Include="functions.c" />
     <ClCompile Include="log.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="mainlogic.cpp" />
+    <ClCompile Include="savefile.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="Hackulator.rc" />

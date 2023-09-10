@@ -2,26 +2,28 @@
 #include <string.h>
 #include <stdlib.h>
 #include <Windows.h>
+#include <stdexcept>
 
 #include "mainlogic.h"
 #include "core.h"
 #include "log.h"
 
-CMainLogic::CMainLogic(bool StartFullscreen)
+CMainLogic::CMainLogic(bool StartFullscreen, char *pSaveFilePath) : m_SaveFile(this, pSaveFilePath)
 {
+	int retval = 0;
+
 	m_ExitApplication = false;
 	m_DefaultNumberType = NUT_DECIMAL;
-
-	strncpy(m_aNumberTypeNames[NUT_INVALID], "invalid", ARRAYSIZE(m_aNumberTypeNames[0]));
-	strncpy(m_aNumberTypeNames[NUT_BINARY], "binary", ARRAYSIZE(m_aNumberTypeNames[0]));
-	strncpy(m_aNumberTypeNames[NUT_DUAL], "dual", ARRAYSIZE(m_aNumberTypeNames[0]));
-	strncpy(m_aNumberTypeNames[NUT_OCTAL], "octal", ARRAYSIZE(m_aNumberTypeNames[0]));
-	strncpy(m_aNumberTypeNames[NUT_DECIMAL], "decimal", ARRAYSIZE(m_aNumberTypeNames[0]));
-	strncpy(m_aNumberTypeNames[NUT_HEXADECIMAL], "hexadecimal", ARRAYSIZE(m_aNumberTypeNames[0]));
 
 	m_StartFullscreen = StartFullscreen;
 	if (m_StartFullscreen)
 		ShowWindow(GetConsoleWindow(), SW_MAXIMIZE);
+
+	retval = m_SaveFile.Init();
+	if (retval != OK)
+	{
+		CCore::Exit(EXITCODE_ERROR);
+	}
 }
 
 CMainLogic::~CMainLogic()
@@ -179,9 +181,9 @@ int CMainLogic::EvaluateTokens(char aaToken[CMAINLOGIC_CONSOLE_TOKENS][CMAINLOGI
 	for (int i = 0; i < ARRAYSIZE(m_asCommands); ++i)
 	{
 		// if a command was entered, execute command and leave
-		if (CCore::StringCompareNocase(aaToken[0], m_asCommands[i].aName, ARRAYSIZE(aaToken[0])) == 0)
+		if (CCore::StringCompareNocase(aaToken[0], m_asCommands[i].m_aName, ARRAYSIZE(aaToken[0])) == 0)
 		{
-			return ExecuteCommand(m_asCommands[i].ID, aaToken);
+			return ExecuteCommand(m_asCommands[i].m_ID, aaToken);
 		}
 	}
 
@@ -193,30 +195,30 @@ int CMainLogic::EvaluateTokens(char aaToken[CMAINLOGIC_CONSOLE_TOKENS][CMAINLOGI
 
 		// determine token type
 		// check for numbers
-		if (TokenEntryToNumber(aaToken[i], &asTokenEntries[i].number) == OK)
+		if (TokenEntryToNumber(aaToken[i], &asTokenEntries[i].m_Number) == OK)
 		{
-			asTokenEntries[i].type = TET_NUMBER;
+			asTokenEntries[i].m_Type = TET_NUMBER;
 		}// check for signs
-		else if ((asTokenEntries[i].sign = TokenEntryToSign(aaToken[i])) != (E_SIGNS)-1)
+		else if ((asTokenEntries[i].m_Sign = TokenEntryToSign(aaToken[i])) != (E_SIGNS)-1)
 		{
-			asTokenEntries[i].type = TET_SIGN;
+			asTokenEntries[i].m_Type = TET_SIGN;
 		}
 		else
 		{
-			asTokenEntries[i].type = (E_TOKENENTRYTYPES)-1;
+			asTokenEntries[i].m_Type = (E_TOKENENTRYTYPES)-1;
 		}
 
 		// check token validity and fill rest of token entry data
-		if (asTokenEntries[i].type == (E_TOKENENTRYTYPES)-1)
+		if (asTokenEntries[i].m_Type == (E_TOKENENTRYTYPES)-1)
 		{
-			m_Log.LogErr("%d. token '%s' is an invalid token (expected %s number format)", i + 1, aaToken[i], m_aNumberTypeNames[m_DefaultNumberType]);
+			m_Log.LogErr("%d. token '%s' is an invalid token (expected %s number format)", i + 1, aaToken[i], GetNumberTypeName(m_DefaultNumberType));
 			return ERROR;
 		}
 
-		strncpy(asTokenEntries[i].aToken, aaToken[i], ARRAYSIZE(aaToken[0]));
+		strncpy(asTokenEntries[i].m_aToken, aaToken[i], ARRAYSIZE(aaToken[0]));
 		amountEntries++;
 
-		//if (asTokenEntries[i].type == TET_NUMBER)
+		//if (asTokenEntries[i].m_Type == TET_NUMBER)
 		//	m_Log.Log("--> %llu", asTokenEntries[i].number);
 		//else
 		//	m_Log.Log("--> %s", asTokenEntries[i].aToken);
@@ -470,40 +472,40 @@ int CMainLogic::CheckTokenSyntax(S_TOKENENTRY* pasTokenEntries, size_t AmountEnt
 			psPreviousEntry = &pasTokenEntries[i - 1];
 		
 		// check tokens who are signs
-		if (psCurrentEntry->type == TET_SIGN)
+		if (psCurrentEntry->m_Type == TET_SIGN)
 		{
 			// first sign must not be a combining sign
 			// however some combining signs double as number-modifying signs, keep that in mind
 			if (!psPreviousEntry)
 			{
-				if ((GetSignFlags(psCurrentEntry->sign, SIGFLAG_COMBINE) > 0) &&
-					(GetSignFlags(psCurrentEntry->sign, SIGFLAG_MODIFYNUM) == 0))
+				if ((GetSignFlags(psCurrentEntry->m_Sign, SIGFLAG_COMBINE) > 0) &&
+					(GetSignFlags(psCurrentEntry->m_Sign, SIGFLAG_MODIFYNUM) == 0))
 				{
-					m_Log.LogErr("%d. token '%s', first token must not be a combining sign", i + 1, psCurrentEntry->aToken);
+					m_Log.LogErr("%d. token '%s', first token must not be a combining sign", i + 1, psCurrentEntry->m_aToken);
 					return ERROR;
 				}
 			}
 			else// 2nd+ signs
 			{
 				// if previous sign was combining or modifies a number, the next token has to be a number
-				if ((GetSignFlags(psCurrentEntry->sign, prevSignFlags) & (SIGFLAG_COMBINE || SIGFLAG_MODIFYNUM)) > 0)
+				if ((GetSignFlags(psCurrentEntry->m_Sign, prevSignFlags) & (SIGFLAG_COMBINE || SIGFLAG_MODIFYNUM)) > 0)
 				{
-					m_Log.LogErr("%d. token '%s', number-combining or number-modifying signs must be followed by a number", i + 1, psCurrentEntry->aToken);
+					m_Log.LogErr("%d. token '%s', number-combining or number-modifying signs must be followed by a number", i + 1, psCurrentEntry->m_aToken);
 					return ERROR;
 				}
 
 				// last entry must not be a sign
 				if (i >= AmountEntries - 1)
 				{
-					m_Log.LogErr("%d. token '%s', last token must not be a number-combining or number-modifying sign", i + 1, psCurrentEntry->aToken);
+					m_Log.LogErr("%d. token '%s', last token must not be a number-combining or number-modifying sign", i + 1, psCurrentEntry->m_aToken);
 					return ERROR;
 				}
 			}
 
 			// prepare next loop
-			prevSignFlags = GetSignFlags(psCurrentEntry->sign, SIGFLAG_ALL);
+			prevSignFlags = GetSignFlags(psCurrentEntry->m_Sign, SIGFLAG_ALL);
 		}
-		else if (psCurrentEntry->type == TET_NUMBER)// check tokens who are numbers
+		else if (psCurrentEntry->m_Type == TET_NUMBER)// check tokens who are numbers
 		{
 			// first number
 			if (!psPreviousEntry)
@@ -513,9 +515,9 @@ int CMainLogic::CheckTokenSyntax(S_TOKENENTRY* pasTokenEntries, size_t AmountEnt
 			else// 2nd+ number
 			{
 				// if previous token is a number, error
-				if (psPreviousEntry->type == TET_NUMBER)
+				if (psPreviousEntry->m_Type == TET_NUMBER)
 				{
-					m_Log.LogErr("%d. token '%s', number must not be followed by another number", i + 1, psCurrentEntry->aToken);
+					m_Log.LogErr("%d. token '%s', number must not be followed by another number", i + 1, psCurrentEntry->m_aToken);
 					return ERROR;
 				}
 			}
@@ -574,7 +576,7 @@ U64 CMainLogic::CalculateTokens(S_TOKENENTRY* pasTokenEntries, size_t AmountEntr
 				// determine first num index if not yet found
 				if (firstNumIndex < 0)
 				{
-					if (asCalculation[index].type == TET_NUMBER)
+					if (asCalculation[index].m_Type == TET_NUMBER)
 					{
 						firstNumIndex = index;
 
@@ -585,7 +587,7 @@ U64 CMainLogic::CalculateTokens(S_TOKENENTRY* pasTokenEntries, size_t AmountEntr
 				}
 				else if (secondNumIndex < 0)// determine second num index if not yet found
 				{
-					if (index != firstNumIndex && asCalculation[index].type == TET_NUMBER)
+					if (index != firstNumIndex && asCalculation[index].m_Type == TET_NUMBER)
 					{
 						secondNumIndex = index;
 
@@ -613,7 +615,7 @@ U64 CMainLogic::CalculateTokens(S_TOKENENTRY* pasTokenEntries, size_t AmountEntr
 
 			//m_Log.Log("Disposed %d, %d, %d, %d, %d", amountTokensDisposed, firstNumIndex, firstSignIndex, secondNumIndex, secondSignIndex);
 
-			tempResult = asCalculation[firstNumIndex].number;
+			tempResult = asCalculation[firstNumIndex].m_Number;
 
 			// calculate if two nums have been found, otherwise the result has been seen
 			if (secondNumIndex < 0)
@@ -622,16 +624,16 @@ U64 CMainLogic::CalculateTokens(S_TOKENENTRY* pasTokenEntries, size_t AmountEntr
 			}
 			else// calculate
 			{
-				U64 firstNum = asCalculation[firstNumIndex].number;
-				U64 secondNum = asCalculation[secondNumIndex].number;
+				U64 firstNum = asCalculation[firstNumIndex].m_Number;
+				U64 secondNum = asCalculation[secondNumIndex].m_Number;
 				E_SIGNS firstSignType = (E_SIGNS)-1;
 				E_SIGNS secondSignType = (E_SIGNS)-1;
 
 				// sign types (first one does not have to have a sign)
 				if (firstSignIndex >= 0)
-					firstSignType = asCalculation[firstSignIndex].sign;
+					firstSignType = asCalculation[firstSignIndex].m_Sign;
 
-				secondSignType = asCalculation[secondSignIndex].sign;
+				secondSignType = asCalculation[secondSignIndex].m_Sign;
 
 				// modify numbers
 				firstNum = ModifyNumberBySign(firstNum, firstSignType);
@@ -676,8 +678,8 @@ U64 CMainLogic::CalculateTokens(S_TOKENENTRY* pasTokenEntries, size_t AmountEntr
 		// assign new token
 		memset(&sTempTokenEntry, 0, sizeof(sTempTokenEntry));
 
-		sTempTokenEntry.number = tempResult;
-		sTempTokenEntry.type = TET_NUMBER;
+		sTempTokenEntry.m_Number = tempResult;
+		sTempTokenEntry.m_Type = TET_NUMBER;
 
 		// crop calculation
 		asTempCalculation[0] = sTempTokenEntry;
@@ -743,10 +745,10 @@ int CMainLogic::GetSignFlags(E_SIGNS Sign, int SigFlags)
 	// look for matching sign in array and return flags
 	for (int i = 0; i < ARRAYSIZE(m_asSigns); ++i)
 	{
-		if (m_asSigns[i].type == Sign)
+		if (m_asSigns[i].m_Type == Sign)
 		{
 			pSign = &m_asSigns[i];
-			return (pSign->flags & SigFlags);
+			return (pSign->m_Flags & SigFlags);
 		}
 	}
 
@@ -757,6 +759,21 @@ int CMainLogic::GetSignFlags(E_SIGNS Sign, int SigFlags)
 int CMainLogic::GetFlags(int Value, int Flags)
 {
 	return (Value | Flags);
+}
+
+const char* CMainLogic::GetNumberTypeName(E_NUMBERTYPES Type)
+{
+	S_NUMBERTYPENAME* psCurrent = NULL;
+
+	for (int i = 0; i < ARRAYSIZE(m_asNumberTypeNames[0].m_aName); ++i)
+	{
+		psCurrent = &m_asNumberTypeNames[i];
+
+		if (Type == psCurrent->m_Type)
+			return psCurrent->m_aName;
+	}
+
+	return m_asNumberTypeNames[NUT_INVALID].m_aName;
 }
 
 int CMainLogic::ComHelp(E_COMMANDS ID)
@@ -771,9 +788,8 @@ int CMainLogic::ComHelp(E_COMMANDS ID)
 		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX "Enter a calculation or one of the commands below.");
 		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX "Max. number size is 64 bit.");
 		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX "All input is case insensitive.");
-		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX "Default number type is %s (when no prefix is given).", m_aNumberTypeNames[m_DefaultNumberType]);
-		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX "Save file location is \"%s\"", "...");
-		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX "Number prefixes: " NUMPREFSTR_BINARY "=%s, " NUMPREFSTR_DUAL "=%s, " NUMPREFSTR_OCTAL "=%s, " NUMPREFSTR_DECIMAL "=%s, " NUMPREFSTR_HEXADECIMAL "=%s. Example: '" NUMPREFSTR_HEXADECIMAL "DEADBEEF'", m_aNumberTypeNames[NUT_BINARY], m_aNumberTypeNames[NUT_DUAL], m_aNumberTypeNames[NUT_OCTAL], m_aNumberTypeNames[NUT_DECIMAL], m_aNumberTypeNames[NUT_HEXADECIMAL]);
+		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX "Default number type is %s (when no prefix is given).", GetNumberTypeName(m_DefaultNumberType));
+		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX "Number prefixes: " NUMPREFSTR_BINARY "=%s, " NUMPREFSTR_DUAL "=%s, " NUMPREFSTR_OCTAL "=%s, " NUMPREFSTR_DECIMAL "=%s, " NUMPREFSTR_HEXADECIMAL "=%s. Example: '" NUMPREFSTR_HEXADECIMAL "DEADBEEF'", GetNumberTypeName(NUT_BINARY), GetNumberTypeName(NUT_DUAL), GetNumberTypeName(NUT_OCTAL), GetNumberTypeName(NUT_DECIMAL), GetNumberTypeName(NUT_HEXADECIMAL));
 		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX);
 		m_Log.Log(CMAINLOGIC_COMHELP_HEADER_COMMANDS);
 
@@ -784,15 +800,15 @@ int CMainLogic::ComHelp(E_COMMANDS ID)
 			memset(aExample, 0, ARRAYSIZE(aExample));
 
 			// if parameters are given, print parameters
-			if (strnlen(m_asCommands[i].aParameters, ARRAYSIZE(m_asCommands[i].aParameters)) > 0)
-				snprintf(aParameters, ARRAYSIZE(aParameters), " Parameters: %s.", m_asCommands[i].aParameters);
+			if (strnlen(m_asCommands[i].m_aParameters, ARRAYSIZE(m_asCommands[i].m_aParameters)) > 0)
+				snprintf(aParameters, ARRAYSIZE(aParameters), " Parameters: %s.", m_asCommands[i].m_aParameters);
 
 			// if example is given, print example
-			if (strnlen(m_asCommands[i].aExample, ARRAYSIZE(m_asCommands[i].aExample)) > 0)
-				snprintf(aExample, ARRAYSIZE(aExample), " Example: '%s %s'", m_asCommands[i].aName, m_asCommands[i].aExample);
+			if (strnlen(m_asCommands[i].m_aExample, ARRAYSIZE(m_asCommands[i].m_aExample)) > 0)
+				snprintf(aExample, ARRAYSIZE(aExample), " Example: '%s %s'", m_asCommands[i].m_aName, m_asCommands[i].m_aExample);
 
 			// output help
-			m_Log.Log(CMAINLOGIC_COMHELP_PREFIX "%s... %s.%s%s", m_asCommands[i].aName, m_asCommands[i].aDescription, aParameters, aExample);
+			m_Log.Log(CMAINLOGIC_COMHELP_PREFIX "%s... %s.%s%s", m_asCommands[i].m_aName, m_asCommands[i].m_aDescription, aParameters, aExample);
 		}
 
 		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX);
@@ -808,7 +824,7 @@ int CMainLogic::ComHelp(E_COMMANDS ID)
 		// find command's index
 		for (int i = 0; i < ARRAYSIZE(m_asCommands); ++i)
 		{
-			if (m_asCommands[i].ID == ID)
+			if (m_asCommands[i].m_ID == ID)
 			{
 				index = i;
 				break;
@@ -822,12 +838,12 @@ int CMainLogic::ComHelp(E_COMMANDS ID)
 			memset(aExample, 0, ARRAYSIZE(aExample));
 
 			// if parameters are given, print parameters
-			if (strnlen(m_asCommands[index].aParameters, ARRAYSIZE(m_asCommands[index].aParameters)) > 0)
-				snprintf(aParameters, ARRAYSIZE(aParameters), " Parameters: %s.", m_asCommands[index].aParameters);
+			if (strnlen(m_asCommands[index].m_aParameters, ARRAYSIZE(m_asCommands[index].m_aParameters)) > 0)
+				snprintf(aParameters, ARRAYSIZE(aParameters), " Parameters: %s.", m_asCommands[index].m_aParameters);
 
 			// if example is given, print example
-			if (strnlen(m_asCommands[index].aExample, ARRAYSIZE(m_asCommands[index].aExample)) > 0)
-				snprintf(aExample, ARRAYSIZE(aExample), " Example: '%s %s'", m_asCommands[index].aName, m_asCommands[index].aExample);
+			if (strnlen(m_asCommands[index].m_aExample, ARRAYSIZE(m_asCommands[index].m_aExample)) > 0)
+				snprintf(aExample, ARRAYSIZE(aExample), " Example: '%s %s'", m_asCommands[index].m_aName, m_asCommands[index].m_aExample);
 
 			// output help
 			m_Log.Log(CMAINLOGIC_COMHELP_PREFIX "%s%s", aParameters, aExample);
@@ -851,7 +867,7 @@ int CMainLogic::ComSetdefault(const char *paType)
 	else
 		return ERROR;
 
-	m_Log.Log("Default is now %s", m_aNumberTypeNames[m_DefaultNumberType]);
+	m_Log.Log("Default is now %s", GetNumberTypeName(m_DefaultNumberType));
 
 	return OK;
 }
