@@ -3,7 +3,7 @@
 #include "core.h"
 
 // other
-#define MAIN_SAVEFILE_NAME "savefile.txt"
+#define MAIN_SAVEFILE_NAME "settings.dat"
 
 // main parameters base
 #define MAIN_MAX_LEN_PARAMS 16

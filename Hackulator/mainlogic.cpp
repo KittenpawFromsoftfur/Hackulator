@@ -18,12 +18,6 @@ CMainLogic::CMainLogic(bool StartFullscreen, char *pSaveFilePath) : m_SaveFile(t
 	m_StartFullscreen = StartFullscreen;
 	if (m_StartFullscreen)
 		ShowWindow(GetConsoleWindow(), SW_MAXIMIZE);
-
-	retval = m_SaveFile.Init();
-	if (retval != OK)
-	{
-		CCore::Exit(EXITCODE_ERROR);
-	}
 }
 
 CMainLogic::~CMainLogic()
@@ -45,7 +39,7 @@ int CMainLogic::EntryPoint()
 	{
 		// check for application exit request
 		if (m_ExitApplication)
-			return OK;
+			return EXITCODE_OK;
 	
 		// resets
 		pToken = 0;
@@ -72,7 +66,7 @@ int CMainLogic::EntryPoint()
 		EvaluateTokens(aaToken);
 	}
 
-    return OK;
+    return EXITCODE_OK;
 }
 
 void CMainLogic::RequestApplicationExit()

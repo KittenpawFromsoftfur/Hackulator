@@ -34,6 +34,40 @@ int CCore::StringCompareNocase(const char* pSource, const char* pDest, size_t Le
 	return 0;
 }
 
+void CCore::StringCopyIgnore(char* pDest, const char* pSource, size_t Len, const char* pIgnore)
+{
+	int destIndex = 0;
+	int ignLen = strlen(pIgnore);
+	bool ignore = false;
+
+	for (int i = 0; i < Len; ++i)
+	{
+		if (!pSource[i])
+			break;
+
+		// check if next source char should be ignored
+		ignore = false;
+
+		for (int ign = 0; ign < ignLen; ++ign)
+		{
+			if (pSource[i] == pIgnore[ign])
+			{
+				ignore = true;
+				break;
+			}
+		}
+
+		if (ignore)
+		{
+			destIndex++;
+			continue;
+		}
+
+		pDest[destIndex] = pSource[i];
+		destIndex++;
+	}
+}
+
 void CCore::StringRevert(char* pString)
 {
 	int i = 0;
@@ -236,6 +270,22 @@ int CCore::NumToString(U64 Number, E_NUMBERFORMAT Format, char* pResult, size_t 
 	StringRevert(pResult);
 
 	return OK;
+}
+
+bool CCore::CheckFileExists(const char* pFilePath)
+{
+	FILE* pFile = 0;
+
+	pFile = fopen(pFilePath, "r");
+	if (!pFile)
+	{
+		return false;
+	}
+	else
+	{
+		fclose(pFile);
+		return true;
+	}
 }
 
 U64 CCore::PowULL(U64 Base, int Exponent)

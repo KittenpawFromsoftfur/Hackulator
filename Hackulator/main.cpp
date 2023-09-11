@@ -7,10 +7,10 @@
 #include "mainlogic.h"
 
 /* TODO
-	square ("), <<, >>, %, #<ascii value>
 	custom prefixes and symbols
 	tabulator, space as allowed whitespaces
 	aaToken[][] --> *
+	square ("), %, #<ascii value>
 	help should explain every single aspect of the hackulator (help file cause too complicated? generatehelp?)
 	Use math library to not have to make own syntax (Otherwise Algorithms to code self: "Shunting yard", "Reverse polish notation")
 		ExprEval: https://expreval.sourceforge.net/#:~:text=ExprEval%20is%20a%20powerful%2C%20high,once%20into%20an%20expression%20tree.
@@ -56,7 +56,7 @@ int main(int argc, char *argv[])
 		{
 			if (pParamValue)
 			{
-				strncpy(aSaveFilePath, pParamValue, ARRAYSIZE(aSaveFilePath));
+				strncpy_s(aSaveFilePath, pParamValue, ARRAYSIZE(aSaveFilePath));
 				i++;
 			}
 			else
