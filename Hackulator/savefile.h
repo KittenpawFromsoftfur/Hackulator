@@ -2,17 +2,13 @@
 
 #include "core.h"
 
-// ############### ATTENTION ZONE ###############
-#define CSAVEFILE_SAVEFILE_VERSION "0"// Increment by +1 each time the save file format changes and a release is pushed to origin
-// ##############################################
+#define CSAVEFILE_NUMSHORTNAME_BINARY       "b"
+#define CSAVEFILE_NUMSHORTNAME_DUAL         "u"
+#define CSAVEFILE_NUMSHORTNAME_OCTAL        "o"
+#define CSAVEFILE_NUMSHORTNAME_DECIMAL      "d"
+#define CSAVEFILE_NUMSHORTNAME_HEXADECIMAL  "x"
 
 // default values
-// number labels
-#define CSAVEFILE_DEFAULT_NUMLABEL_BINARY       "b"
-#define CSAVEFILE_DEFAULT_NUMLABEL_DUAL         "u"
-#define CSAVEFILE_DEFAULT_NUMLABEL_OCTAL        "o"
-#define CSAVEFILE_DEFAULT_NUMLABEL_DECIMAL      "d"
-#define CSAVEFILE_DEFAULT_NUMLABEL_HEXADECIMAL  "x"
 // operator labels
 #define CSAVEFILE_DEFAULT_OPLABEL_ADD           "+"
 #define CSAVEFILE_DEFAULT_OPLABEL_SUBTRACT      "-"
@@ -40,9 +36,7 @@ class CSaveFile
 public:
     enum E_SAVEKEYS
     {
-        // ############### ATTENTION ZONE ###############
-        SK_SAVEFILE_VERSION = 0,// Do not change the value
-        // ##############################################
+        // ##### ADD ENUM ONLY DIRECTLY ABOVE 'AMOUNT_KEYS' #####
         SK_NUMPREFIX_BINARY,
         SK_NUMPREFIX_DUAL,
         SK_NUMPREFIX_OCTAL,
@@ -66,6 +60,7 @@ public:
         SK_RESULTORDER,
         SK_STARTFULLSCREEN,
         AMOUNT_KEYS,
+        // ######################################################
     };
 
     typedef struct
@@ -79,19 +74,17 @@ public:
     int CreateSaveFile();
     int WriteKey(E_SAVEKEYS Key, const char* pValue);
     int ReadKey(E_SAVEKEYS Key, char *pKey);
-    int EvolveSaveFile();
 
 private:
     CMainLogic *m_pMainLogic;
     char m_aSaveFilePath[MAX_LEN_FILEPATHS];
     S_SAVEKEYDEFAULT m_asSaveKeyDefaults[AMOUNT_KEYS] =
     {
-        { SK_SAVEFILE_VERSION,          CSAVEFILE_SAVEFILE_VERSION },
-        { SK_NUMPREFIX_BINARY,          "0" CSAVEFILE_DEFAULT_NUMLABEL_BINARY },
-        { SK_NUMPREFIX_DUAL,            "0" CSAVEFILE_DEFAULT_NUMLABEL_DUAL },
-        { SK_NUMPREFIX_OCTAL,           "0" CSAVEFILE_DEFAULT_NUMLABEL_OCTAL },
-        { SK_NUMPREFIX_DECIMAL,         "0" CSAVEFILE_DEFAULT_NUMLABEL_DECIMAL },
-        { SK_NUMPREFIX_HEXADECIMAL,     "0" CSAVEFILE_DEFAULT_NUMLABEL_HEXADECIMAL },
+        { SK_NUMPREFIX_BINARY,          "0" CSAVEFILE_NUMSHORTNAME_BINARY },
+        { SK_NUMPREFIX_DUAL,            "0" CSAVEFILE_NUMSHORTNAME_DUAL },
+        { SK_NUMPREFIX_OCTAL,           "0" CSAVEFILE_NUMSHORTNAME_OCTAL },
+        { SK_NUMPREFIX_DECIMAL,         "0" CSAVEFILE_NUMSHORTNAME_DECIMAL },
+        { SK_NUMPREFIX_HEXADECIMAL,     "0" CSAVEFILE_NUMSHORTNAME_HEXADECIMAL },
         { SK_OPPREFIX_ADD,              CSAVEFILE_DEFAULT_OPLABEL_ADD },
         { SK_OPPREFIX_SUBTRACT,         CSAVEFILE_DEFAULT_OPLABEL_SUBTRACT },
         { SK_OPPREFIX_MULTIPLY,         CSAVEFILE_DEFAULT_OPLABEL_MULTIPLY },
@@ -107,7 +100,7 @@ private:
         { SK_OPPREFIX_RSHIFT,           CSAVEFILE_DEFAULT_OPLABEL_RSHIFT },
         { SK_OPPREFIX_BRACKET_OPEN,     CSAVEFILE_DEFAULT_OPLABEL_BRACKET_OPEN },
         { SK_OPPREFIX_BRACKET_CLOSE,    CSAVEFILE_DEFAULT_OPLABEL_BRACKET_CLOSE },
-        { SK_RESULTORDER,               CSAVEFILE_DEFAULT_NUMLABEL_BINARY CSAVEFILE_DEFAULT_NUMLABEL_DUAL CSAVEFILE_DEFAULT_NUMLABEL_OCTAL CSAVEFILE_DEFAULT_NUMLABEL_DECIMAL CSAVEFILE_DEFAULT_NUMLABEL_HEXADECIMAL },
+        { SK_RESULTORDER,               CSAVEFILE_NUMSHORTNAME_BINARY CSAVEFILE_NUMSHORTNAME_DUAL CSAVEFILE_NUMSHORTNAME_OCTAL CSAVEFILE_NUMSHORTNAME_DECIMAL CSAVEFILE_NUMSHORTNAME_HEXADECIMAL },
         { SK_STARTFULLSCREEN,           "0" },
     };
 };

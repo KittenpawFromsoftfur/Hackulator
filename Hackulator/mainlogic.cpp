@@ -13,7 +13,7 @@ CMainLogic::CMainLogic(bool StartFullscreen, char *pSaveFilePath) : m_SaveFile(t
 	int retval = 0;
 
 	m_ExitApplication = false;
-	m_DefaultNumberType = NUT_DECIMAL;
+	m_DefaultInputFormat = NUT_DECIMAL;
 
 	m_StartFullscreen = StartFullscreen;
 	if (m_StartFullscreen)
@@ -205,7 +205,7 @@ int CMainLogic::EvaluateTokens(char aaToken[CMAINLOGIC_CONSOLE_TOKENS][CMAINLOGI
 		// check token validity and fill rest of token entry data
 		if (asTokenEntries[i].m_Type == (E_TOKENENTRYTYPES)-1)
 		{
-			m_Log.LogErr("%d. token '%s' is an invalid token (expected %s number format)", i + 1, aaToken[i], GetNumberTypeName(m_DefaultNumberType));
+			m_Log.LogErr("%d. token '%s' is an invalid token (expected %s number format)", i + 1, aaToken[i], GetNumPrefix(m_DefaultInputFormat)->m_aName);
 			return ERROR;
 		}
 
@@ -242,8 +242,12 @@ int CMainLogic::ExecuteCommand(E_COMMANDS ID, char aaToken[CMAINLOGIC_CONSOLE_TO
 		ComHelp((E_COMMANDS) - 1);
 		break;
 
-	case COM_SETDEFAULT:
-		retval = ComSetdefault(aaToken[1]);
+	case COM_SET_INPUTFORMAT:
+		retval = ComSetinputformat(aaToken[1]);
+		break;
+
+	case COM_SET_NUMBERPREFIX:
+		retval = ComSetnumberprefix(aaToken[1], aaToken[2]);
 		break;
 
 	case COM_CLEARSCREEN:
@@ -311,7 +315,7 @@ int CMainLogic::TokenEntryToNumber(const char* paToken, U64 *pNumber)
 		pConvertableInput = paToken;// if no prefix is given, the convertable input is the token instead of the content which is missing some characters
 
 		// check if non-prefixed input is matching the format of the default type
-		switch (m_DefaultNumberType)
+		switch (m_DefaultInputFormat)
 		{
 		case NUT_BINARY:
 			if (CCore::CheckStringFormat(pConvertableInput, CCore::NUMFORM_BINARY))
@@ -755,19 +759,15 @@ int CMainLogic::GetFlags(int Value, int Flags)
 	return (Value | Flags);
 }
 
-const char* CMainLogic::GetNumberTypeName(E_NUMBERTYPES Type)
+CMainLogic::S_NUMPREFIX* CMainLogic::GetNumPrefix(E_NUMBERTYPES Type)
 {
-	S_NUMBERTYPENAME* psCurrent = NULL;
-
-	for (int i = 0; i < ARRAYSIZE(m_asNumberTypeNames[0].m_aName); ++i)
+	for (int i = 0; i < ARRAYSIZE(m_asNumPrefixes); ++i)
 	{
-		psCurrent = &m_asNumberTypeNames[i];
-
-		if (Type == psCurrent->m_Type)
-			return psCurrent->m_aName;
+		if (Type == m_asNumPrefixes[i].m_Type)
+			return &m_asNumPrefixes[i];
 	}
 
-	return m_asNumberTypeNames[NUT_INVALID].m_aName;
+	return &m_asNumPrefixes[NUT_INVALID];
 }
 
 int CMainLogic::ComHelp(E_COMMANDS ID)
@@ -778,13 +778,16 @@ int CMainLogic::ComHelp(E_COMMANDS ID)
 	// print full help
 	if (ID < 0)
 	{
+		// HELP
 		m_Log.Log(CMAINLOGIC_COMHELP_HEADER_HELP);
 		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX "Enter a calculation or one of the commands below.");
 		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX "Max. number size is 64 bit.");
 		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX "All input is case insensitive.");
-		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX "Default number type is %s (when no prefix is given).", GetNumberTypeName(m_DefaultNumberType));
-		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX "Number prefixes: " NUMPREFSTR_BINARY "=%s, " NUMPREFSTR_DUAL "=%s, " NUMPREFSTR_OCTAL "=%s, " NUMPREFSTR_DECIMAL "=%s, " NUMPREFSTR_HEXADECIMAL "=%s. Example: '" NUMPREFSTR_HEXADECIMAL "DEADBEEF'", GetNumberTypeName(NUT_BINARY), GetNumberTypeName(NUT_DUAL), GetNumberTypeName(NUT_OCTAL), GetNumberTypeName(NUT_DECIMAL), GetNumberTypeName(NUT_HEXADECIMAL));
+		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX "Default number type (when no prefix is given): %s", GetNumPrefix(m_DefaultInputFormat)->m_aName);
+		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX "Auto saving: %s", 1 == 1 ? "On" : "Off");
 		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX);
+
+		// COMMANDS
 		m_Log.Log(CMAINLOGIC_COMHELP_HEADER_COMMANDS);
 
 		for (int i = 0; i < ARRAYSIZE(m_asCommands); ++i)
@@ -806,9 +809,45 @@ int CMainLogic::ComHelp(E_COMMANDS ID)
 		}
 
 		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX);
+
+		// NUMPREFIXES
+		m_Log.Log(CMAINLOGIC_COMHELP_HEADER_NUMPREFIXES);
+		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX "%s... " , GetNumPrefix(NUT_BINARY)->m_aName);
+		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX "%s... " , GetNumPrefix(NUT_DUAL)->m_aName);
+		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX "%s... " , GetNumPrefix(NUT_OCTAL)->m_aName);
+		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX "%s... " , GetNumPrefix(NUT_DECIMAL)->m_aName);
+		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX "%s... " , GetNumPrefix(NUT_HEXADECIMAL)->m_aName);
+		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX);
+
+		// OPERATORS
 		m_Log.Log(CMAINLOGIC_COMHELP_HEADER_OPERATORS);
+		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX	CMAINLOGIC_OPNAME_ADD			"... ");
+		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX	CMAINLOGIC_OPNAME_SUBTRACT		"... ");
+		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX	CMAINLOGIC_OPNAME_MULTIPLY		"... ");
+		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX	CMAINLOGIC_OPNAME_DIVIDE		"... ");
+		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX	CMAINLOGIC_OPNAME_EXPONENTIAL	"... ");
+		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX	CMAINLOGIC_OPNAME_MODULO		"... ");
+		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX	CMAINLOGIC_OPNAME_AND			"... ");
+		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX	CMAINLOGIC_OPNAME_OR			"... ");
+		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX	CMAINLOGIC_OPNAME_XOR			"... ");
+		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX	CMAINLOGIC_OPNAME_INVERT		"... ");
+		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX	CMAINLOGIC_OPNAME_REVERT		"... ");
+		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX	CMAINLOGIC_OPNAME_LSHIFT		"... ");
+		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX	CMAINLOGIC_OPNAME_RSHIFT		"... ");
+		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX	CMAINLOGIC_OPNAME_BRACKET_OPEN	"... ");
+		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX	CMAINLOGIC_OPNAME_BRACKET_CLOSE	"... ");
+		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX);
 
+		// NUMSHORTNAMES
+		m_Log.Log(CMAINLOGIC_COMHELP_HEADER_NUMSHORTNAMES);
+		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX CMAINLOGIC_NUMNAME_BINARY		"... " CSAVEFILE_NUMSHORTNAME_BINARY);
+		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX CMAINLOGIC_NUMNAME_DUAL			"... " CSAVEFILE_NUMSHORTNAME_DUAL);
+		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX CMAINLOGIC_NUMNAME_OCTAL		"... " CSAVEFILE_NUMSHORTNAME_OCTAL);
+		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX CMAINLOGIC_NUMNAME_DECIMAL		"... " CSAVEFILE_NUMSHORTNAME_DECIMAL);
+		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX CMAINLOGIC_NUMNAME_HEXADECIMAL	"... " CSAVEFILE_NUMSHORTNAME_HEXADECIMAL);
+		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX);
 
+		// TRAILER
 		m_Log.Log(CMAINLOGIC_COMHELP_TAILER);
 	}
 	else// print only the parameters and example of one command
@@ -846,22 +885,44 @@ int CMainLogic::ComHelp(E_COMMANDS ID)
 	return OK;
 }
 
-int CMainLogic::ComSetdefault(const char *paType)
+int CMainLogic::ComSetinputformat(const char *pType)
 {
-	if (CCore::StringCompareNocase(paType, CMAINLOGIC_COMSETDEFAULT_BINARY, CMAINLOGIC_CONSOLE_TOKEN_SIZE) == 0)
-		m_DefaultNumberType = NUT_BINARY;
-	else if (CCore::StringCompareNocase(paType, CMAINLOGIC_COMSETDEFAULT_DUAL, CMAINLOGIC_CONSOLE_TOKEN_SIZE) == 0)
-		m_DefaultNumberType = NUT_DUAL;
-	else if (CCore::StringCompareNocase(paType, CMAINLOGIC_COMSETDEFAULT_OCTAL, CMAINLOGIC_CONSOLE_TOKEN_SIZE) == 0)
-		m_DefaultNumberType = NUT_OCTAL;
-	else if (CCore::StringCompareNocase(paType, CMAINLOGIC_COMSETDEFAULT_DECIMAL, CMAINLOGIC_CONSOLE_TOKEN_SIZE) == 0)
-		m_DefaultNumberType = NUT_DECIMAL;
-	else if (CCore::StringCompareNocase(paType, CMAINLOGIC_COMSETDEFAULT_HEXADECIMAL, CMAINLOGIC_CONSOLE_TOKEN_SIZE) == 0)
-		m_DefaultNumberType = NUT_HEXADECIMAL;
+	if (CCore::StringCompareNocase(pType, CMAINLOGIC_NUMNAME_BINARY, CMAINLOGIC_CONSOLE_TOKEN_SIZE) == 0)
+		m_DefaultInputFormat = NUT_BINARY;
+	else if (CCore::StringCompareNocase(pType, CMAINLOGIC_NUMNAME_DUAL, CMAINLOGIC_CONSOLE_TOKEN_SIZE) == 0)
+		m_DefaultInputFormat = NUT_DUAL;
+	else if (CCore::StringCompareNocase(pType, CMAINLOGIC_NUMNAME_OCTAL, CMAINLOGIC_CONSOLE_TOKEN_SIZE) == 0)
+		m_DefaultInputFormat = NUT_OCTAL;
+	else if (CCore::StringCompareNocase(pType, CMAINLOGIC_NUMNAME_DECIMAL, CMAINLOGIC_CONSOLE_TOKEN_SIZE) == 0)
+		m_DefaultInputFormat = NUT_DECIMAL;
+	else if (CCore::StringCompareNocase(pType, CMAINLOGIC_NUMNAME_HEXADECIMAL, CMAINLOGIC_CONSOLE_TOKEN_SIZE) == 0)
+		m_DefaultInputFormat = NUT_HEXADECIMAL;
 	else
 		return ERROR;
 
-	m_Log.Log("Default is now %s", GetNumberTypeName(m_DefaultNumberType));
+	m_Log.Log("Default input format is now %s", pType);
+
+	return OK;
+}
+
+int CMainLogic::ComSetnumberprefix(const char *pType, const char *pPrefix)
+{
+	E_NUMBERTYPES numberType = NUT_INVALID;
+
+	if (CCore::StringCompareNocase(pType, CMAINLOGIC_NUMNAME_BINARY, CMAINLOGIC_CONSOLE_TOKEN_SIZE) == 0)
+		numberType = NUT_BINARY;
+	else if (CCore::StringCompareNocase(pType, CMAINLOGIC_NUMNAME_DUAL, CMAINLOGIC_CONSOLE_TOKEN_SIZE) == 0)
+		numberType = NUT_DUAL;
+	else if (CCore::StringCompareNocase(pType, CMAINLOGIC_NUMNAME_OCTAL, CMAINLOGIC_CONSOLE_TOKEN_SIZE) == 0)
+		numberType = NUT_OCTAL;
+	else if (CCore::StringCompareNocase(pType, CMAINLOGIC_NUMNAME_DECIMAL, CMAINLOGIC_CONSOLE_TOKEN_SIZE) == 0)
+		numberType = NUT_DECIMAL;
+	else if (CCore::StringCompareNocase(pType, CMAINLOGIC_NUMNAME_HEXADECIMAL, CMAINLOGIC_CONSOLE_TOKEN_SIZE) == 0)
+		numberType = NUT_HEXADECIMAL;
+	else
+		return ERROR;
+
+	m_Log.Log("Number prefix for %s is now %s", pType, pPrefix);
 
 	return OK;
 }

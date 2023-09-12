@@ -28,15 +28,8 @@ CSaveFile::CSaveFile(CMainLogic *pMainLogic, char *pSaveFilePath)
 			CCore::Exit(EXITCODE_ERR_SAVEFILE);
 		}
 	}
-	else// save file exists, evolve and load
+	else// save file exists, load
 	{
-		// evolve save file if necessary
-		retval = EvolveSaveFile();
-		if (retval != OK)
-		{
-			CCore::Exit(EXITCODE_ERR_SAVEFILE);
-		}
-
 		// load save file
 		// ...
 	}
@@ -64,7 +57,7 @@ int CSaveFile::CreateSaveFile()
 	for (int i = 0; i < ARRAYSIZE(m_asSaveKeyDefaults); ++i)
 	{
 		retval = WriteKey(m_asSaveKeyDefaults[i].m_Key, m_asSaveKeyDefaults[i].aDefault);
-		if (retval != ERROR)
+		if (retval != OK)
 		{
 			m_pMainLogic->m_Log.LogErr("Writing default key %d", m_asSaveKeyDefaults[i].m_Key);
 			fclose(pFile);
@@ -142,7 +135,7 @@ int CSaveFile::WriteKey(E_SAVEKEYS Key, const char* pValue)
 	}
 
 	for (int i = 0; i < ARRAYSIZE(aLine); ++i)
-		fprintf(pFile, aLine[i]);
+		fwrite(aLine[i], sizeof(char), strlen(aLine[i]), pFile);
 
 	fclose(pFile);
 
@@ -213,49 +206,4 @@ int CSaveFile::ReadKey(E_SAVEKEYS Key, char* pKey)
 	m_pMainLogic->m_Log.LogErr("Reading line %d", Key);
 
 	return ERROR;
-}
-
-// Hope we never need this
-int CSaveFile::EvolveSaveFile()
-{
-	int retval = 0;
-	int currentVersion = 0;
-	int latestVersion = 0;
-	char aCurrentVersion[CSAVEFILE_LINE_LEN] = { 0 };
-
-	// check save file version
-	retval = ReadKey(SK_SAVEFILE_VERSION, aCurrentVersion);
-	if (retval != OK)
-	{
-		m_pMainLogic->m_Log.LogErr("Reading save file version");
-		CCore::Exit(EXITCODE_ERR_SAVEFILE);
-	}
-
-	// versions differ
-	if (strncmp(CSAVEFILE_SAVEFILE_VERSION, aCurrentVersion, ARRAYSIZE(aCurrentVersion)) == 0)
-		return OK;
-	else
-		m_pMainLogic->m_Log.Log("Save file versions differ (current/new): %s/%s\nInitiating save file evolution...", aCurrentVersion, CSAVEFILE_SAVEFILE_VERSION);
-
-	currentVersion= atoi(aCurrentVersion);
-	latestVersion = atoi(CSAVEFILE_SAVEFILE_VERSION);
-
-	// check if versions differentiate
-	if (currentVersion == latestVersion)
-		return OK;
-
-	// go through all necessary evolutionary steps to reach the current save file format
-	for (int i = currentVersion; i < latestVersion; ++i)
-	{
-		m_pMainLogic->m_Log.Log("%d --> %d", i, i + 1);
-
-		if (i == 0)
-		{
-			// ...
-		}
-	}
-
-	m_pMainLogic->m_Log.Log("Evolution from version %d to %d completed successfully, you can now proceed as usual!", currentVersion, latestVersion);
-
-	return OK;
 }
