@@ -93,10 +93,16 @@ int CMainLogic::ParseInput(const char* pInput, size_t LenInput, char *paaToken, 
 			stringEnd = true;
 
 		// determine if char is symbol
-		if (CCore::CharContains(pInput[i], SIGSTR_ADD SIGSTR_SUBTRACT SIGSTR_AND SIGSTR_OR SIGSTR_XOR SIGSTR_INVERT SIGSTR_REVERT))
-			charIsSymbol = true;
-		else
-			charIsSymbol = false;
+		charIsSymbol = false;
+
+		for (int opInd = 0; opInd < ARRAYSIZE(m_asOperators); ++opInd)
+		{
+			if (CCore::CharContains(pInput[i], m_asOperators[i].m_aOperator))
+			{
+				charIsSymbol = true;
+				break;
+			}
+		}
 
 		// determine if char is delimiter
 		if (pInput[i] == ' ')
@@ -165,11 +171,11 @@ int CMainLogic::ParseInput(const char* pInput, size_t LenInput, char *paaToken, 
 int CMainLogic::EvaluateTokens(char aaToken[CMAINLOGIC_CONSOLE_TOKENS][CMAINLOGIC_CONSOLE_TOKEN_SIZE])
 {
 	int retval = 0;
-	S_TOKENENTRY asTokenEntries[CMAINLOGIC_CONSOLE_TOKENS];
+	S_TOKEN asTokenEntries[CMAINLOGIC_CONSOLE_TOKENS];
 	int amountEntries = 0;
 	U64 result = 0;
 
-	memset(asTokenEntries, 0, ARRAYSIZE(asTokenEntries) * sizeof(S_TOKENENTRY));
+	memset(asTokenEntries, 0, ARRAYSIZE(asTokenEntries) * sizeof(S_TOKEN));
 
 	// look for command
 	for (int i = 0; i < ARRAYSIZE(m_asCommands); ++i)
@@ -189,42 +195,42 @@ int CMainLogic::EvaluateTokens(char aaToken[CMAINLOGIC_CONSOLE_TOKENS][CMAINLOGI
 
 		// determine token type
 		// check for numbers
-		if (TokenEntryToNumber(aaToken[i], &asTokenEntries[i].m_Number) == OK)
+		if (ExtractNumberFromToken(aaToken[i], &asTokenEntries[i].m_Number) == OK)
 		{
-			asTokenEntries[i].m_Type = TET_NUMBER;
+			asTokenEntries[i].m_TokType = TOT_NUMBER;
 		}// check for signs
-		else if ((asTokenEntries[i].m_Sign = TokenEntryToSign(aaToken[i])) != (E_SIGNS)-1)
+		else if ((asTokenEntries[i].m_OpType = GetOperatorFromToken(aaToken[i])->m_OpType) != (E_OPTYPES)-1)
 		{
-			asTokenEntries[i].m_Type = TET_SIGN;
+			asTokenEntries[i].m_TokType = TOT_OPERATOR;
 		}
 		else
 		{
-			asTokenEntries[i].m_Type = (E_TOKENENTRYTYPES)-1;
+			asTokenEntries[i].m_TokType = (E_TOKTYPES)-1;
 		}
 
 		// check token validity and fill rest of token entry data
-		if (asTokenEntries[i].m_Type == (E_TOKENENTRYTYPES)-1)
+		if (asTokenEntries[i].m_TokType == (E_TOKTYPES)-1)
 		{
-			m_Log.LogErr("%d. token '%s' is an invalid token (expected %s number format)", i + 1, aaToken[i], GetNumPrefix(m_DefaultInputFormat)->m_aName);
+			m_Log.LogErr("%d. token '%s' is an invalid token (expected %s number format)", i + 1, aaToken[i], GetNumberFromType(m_DefaultInputFormat)->m_aName);
 			return ERROR;
 		}
 
 		strncpy(asTokenEntries[i].m_aToken, aaToken[i], ARRAYSIZE(aaToken[0]));
 		amountEntries++;
 
-		//if (asTokenEntries[i].m_Type == TET_NUMBER)
+		//if (asTokenEntries[i].m_TokType == TOT_NUMBER)
 		//	m_Log.Log("--> %llu", asTokenEntries[i].number);
 		//else
 		//	m_Log.Log("--> %s", asTokenEntries[i].aToken);
 	}
 
 	// evaluate syntax
-	retval = CheckTokenSyntax(asTokenEntries, amountEntries);
+	retval = CheckSyntax(asTokenEntries, amountEntries);
 	if (retval != OK)
 		return ERROR;
 
 	// calculate tokens
-	result = CalculateTokens(asTokenEntries, amountEntries);
+	result = Calculate(asTokenEntries, amountEntries);
 
 	// print result
 	PrintResult(result);
@@ -268,15 +274,14 @@ int CMainLogic::ExecuteCommand(E_COMMANDS ID, char aaToken[CMAINLOGIC_CONSOLE_TO
 	return OK;
 }
 
-int CMainLogic::TokenEntryToNumber(const char* paToken, U64 *pNumber)
+int CMainLogic::ExtractNumberFromToken(const char* paToken, U64 *pNumber)
 {
 	int retval = 0;
-	E_NUMBERTYPES type = NUT_INVALID;
+	E_NUMTYPES numType = NUT_INVALID;
 	char aPrefix[CMAINLOGIC_CONSOLE_NUMBER_PREFIX_LENGTH + 1] = { 0 };
 	char aContent[CMAINLOGIC_CONSOLE_TOKEN_SIZE] = { 0 };
 	bool hasPrefix = true;
 	const char* pConvertableInput = aContent;
-	int radix = 0;
 
 	if (!pNumber)
 		return ERROR;
@@ -289,176 +294,55 @@ int CMainLogic::TokenEntryToNumber(const char* paToken, U64 *pNumber)
 	// copy content
 	strncpy(aContent, paToken + CMAINLOGIC_CONSOLE_NUMBER_PREFIX_LENGTH, ARRAYSIZE(aContent));
 
-	if (CCore::StringCompareNocase(aPrefix, NUMPREFSTR_BINARY, CMAINLOGIC_CONSOLE_TOKEN_SIZE) == 0)
-	{
-		type = NUT_BINARY;
-	}
-	else if (CCore::StringCompareNocase(aPrefix, NUMPREFSTR_DUAL, CMAINLOGIC_CONSOLE_TOKEN_SIZE) == 0)
-	{
-		type = NUT_DUAL;
-	}
-	else if (CCore::StringCompareNocase(aPrefix, NUMPREFSTR_OCTAL, CMAINLOGIC_CONSOLE_TOKEN_SIZE) == 0)
-	{
-		type = NUT_OCTAL;
-	}
-	else if (CCore::StringCompareNocase(aPrefix, NUMPREFSTR_DECIMAL, CMAINLOGIC_CONSOLE_TOKEN_SIZE) == 0)
-	{
-		type = NUT_DECIMAL;
-	}
-	else if (CCore::StringCompareNocase(aPrefix, NUMPREFSTR_HEXADECIMAL, CMAINLOGIC_CONSOLE_TOKEN_SIZE) == 0)
-	{
-		type = NUT_HEXADECIMAL;
-	}
-	else// no prefix given
+	numType = NUT_INVALID;
+
+	numType = GetNumberFromPrefix(aPrefix)->m_NumType;
+
+	// no prefix given
+	if (numType == NUT_INVALID)
 	{
 		hasPrefix = false;
 		pConvertableInput = paToken;// if no prefix is given, the convertable input is the token instead of the content which is missing some characters
 
 		// check if non-prefixed input is matching the format of the default type
-		switch (m_DefaultInputFormat)
-		{
-		case NUT_BINARY:
-			if (CCore::CheckStringFormat(pConvertableInput, CCore::NUMFORM_BINARY))
-				type = NUT_BINARY;
-			break;
-
-		case NUT_DUAL:
-			if (CCore::CheckStringFormat(pConvertableInput, CCore::NUMFORM_DUAL))
-				type = NUT_DUAL;
-			break;
-
-		case NUT_OCTAL:
-			if (CCore::CheckStringFormat(pConvertableInput, CCore::NUMFORM_OCTAL))
-				type = NUT_OCTAL;
-			break;
-
-		case NUT_DECIMAL:
-			if (CCore::CheckStringFormat(pConvertableInput, CCore::NUMFORM_DECIMAL))
-				type = NUT_DECIMAL;
-			break;
-
-		case NUT_HEXADECIMAL:
-			if (CCore::CheckStringFormat(pConvertableInput, CCore::NUMFORM_HEXADECIMAL))
-				type = NUT_HEXADECIMAL;
-			break;
-		}
+		numType = GetNumberFromType(m_DefaultInputFormat)->m_NumType;
 	}
 
-	// type cannot be determined, exit
-	if (type == NUT_INVALID)
+	// type still cannot be determined, return
+	if (numType == NUT_INVALID)
 		return ERROR;
 
 	// check the number format (only necessary if the input is prefixed, since non-prefixed input has already been checked... see above)
 	if (hasPrefix)
-	{ 
-		switch (type)
-		{
-		case NUT_BINARY:
-			if (!CCore::CheckStringFormat(pConvertableInput, CCore::NUMFORM_BINARY))
-				return ERROR;
-			break;
-
-		case NUT_DUAL:
-			if (!CCore::CheckStringFormat(pConvertableInput, CCore::NUMFORM_DUAL))
-				return ERROR;
-			break;
-
-		case NUT_OCTAL:
-			if (!CCore::CheckStringFormat(pConvertableInput, CCore::NUMFORM_OCTAL))
-				return ERROR;
-			break;
-
-		case NUT_DECIMAL:
-			if (!CCore::CheckStringFormat(pConvertableInput, CCore::NUMFORM_DECIMAL))
-				return ERROR;
-			break;
-
-		case NUT_HEXADECIMAL:
-			if (!CCore::CheckStringFormat(pConvertableInput, CCore::NUMFORM_HEXADECIMAL))
-				return ERROR;
-			break;
-		}
+	{
+		if (!CheckStringFormat(pConvertableInput, m_asNumbers[numType].m_NumType))
+			return ERROR;
 	}
 
 	// convert input to number
-	switch (type)
-	{
-	case NUT_BINARY:
-		radix = 2;
-		break;
-
-	case NUT_DUAL:
-		radix = 4;
-		break;
-
-	case NUT_OCTAL:
-		radix = 8;
-		break;
-
-	case NUT_DECIMAL:
-		radix = 10;
-		break;
-
-	case NUT_HEXADECIMAL:
-		radix = 16;
-		break;
-
-	default:
-		return ERROR;
-	}
-
-	*pNumber = strtoull(pConvertableInput, NULL, radix);
+	*pNumber = strtoull(pConvertableInput, NULL, m_asNumbers[numType].m_Radix);
 
 	return OK;
 }
 
-CMainLogic::E_SIGNS CMainLogic::TokenEntryToSign(const char* paToken)
+CMainLogic::S_OPERATOR* CMainLogic::GetOperatorFromToken(const char* paToken)
 {
-	E_SIGNS sign = (E_SIGNS)-1;
-
-	if (CCore::CCore::StringCompareNocase(paToken, SIGSTR_ADD, CMAINLOGIC_CONSOLE_TOKEN_SIZE) == 0)
+	for (int i = 0; i < ARRAYSIZE(m_asOperators); ++i)
 	{
-		sign = SIG_ADD;
-	}
-	else if (CCore::StringCompareNocase(paToken, SIGSTR_SUBTRACT, CMAINLOGIC_CONSOLE_TOKEN_SIZE) == 0)
-	{
-		sign = SIG_SUBTRACT;
-	}
-	else if(CCore::StringCompareNocase(paToken, SIGSTR_AND, CMAINLOGIC_CONSOLE_TOKEN_SIZE) == 0)
-	{
-		sign = SIG_AND;
-	}
-	else if(CCore::StringCompareNocase(paToken, SIGSTR_OR, CMAINLOGIC_CONSOLE_TOKEN_SIZE) == 0)
-	{
-		sign = SIG_OR;
-	}
-	else if(CCore::StringCompareNocase(paToken, SIGSTR_XOR, CMAINLOGIC_CONSOLE_TOKEN_SIZE) == 0)
-	{
-		sign = SIG_XOR;
-	}
-	else if(CCore::StringCompareNocase(paToken, SIGSTR_INVERT, CMAINLOGIC_CONSOLE_TOKEN_SIZE) == 0)
-	{
-		sign = SIG_INVERT;
-	}
-	else if(CCore::StringCompareNocase(paToken, SIGSTR_REVERT, CMAINLOGIC_CONSOLE_TOKEN_SIZE) == 0)
-	{
-		sign = SIG_REVERT;
-	}
-	else
-	{
-		sign = (E_SIGNS)-1;
+		if (CCore::StringCompareNocase(paToken, m_asOperators[i].m_aOperator, CMAINLOGIC_CONSOLE_TOKEN_SIZE) == 0)
+			return &m_asOperators[i];
 	}
 
-	return sign;
+	return &m_asOperators[OPT_INVALID];
 }
 
-int CMainLogic::CheckTokenSyntax(S_TOKENENTRY* pasTokenEntries, size_t AmountEntries)
+int CMainLogic::CheckSyntax(S_TOKEN* pasToken, size_t AmountEntries)// TODO "entries" --> ""
 {
-	int prevSignFlags = 0;
-	S_TOKENENTRY *psPreviousEntry = 0;
-	S_TOKENENTRY* psCurrentEntry = 0;
+/*	int prevSignFlags = 0;
+	S_TOKEN *psPreviousEntry = 0;
+	S_TOKEN* psCurrentEntry = 0;
 	U64 synflags = 0;
-	E_SIGNS aSignsNotAllowedFirst[] = { SIG_AND, SIG_OR, SIG_XOR };
+	E_OPTYPES aSignsNotAllowedFirst[] = { OPT_AND, OPT_OR, OPT_XOR };
 
 	// check token for token
 	for (int i = 0; i < AmountEntries; ++i)
@@ -470,7 +354,7 @@ int CMainLogic::CheckTokenSyntax(S_TOKENENTRY* pasTokenEntries, size_t AmountEnt
 			psPreviousEntry = &pasTokenEntries[i - 1];
 		
 		// check tokens who are signs
-		if (psCurrentEntry->m_Type == TET_SIGN)
+		if (psCurrentEntry->m_Type == TOT_OPERATOR)
 		{
 			// first sign must not be a combining sign
 			// however some combining signs double as number-modifying signs, keep that in mind
@@ -503,7 +387,7 @@ int CMainLogic::CheckTokenSyntax(S_TOKENENTRY* pasTokenEntries, size_t AmountEnt
 			// prepare next loop
 			prevSignFlags = GetSignFlags(psCurrentEntry->m_Sign, SIGFLAG_ALL);
 		}
-		else if (psCurrentEntry->m_Type == TET_NUMBER)// check tokens who are numbers
+		else if (psCurrentEntry->m_Type == TOT_NUMBER)// check tokens who are numbers
 		{
 			// first number
 			if (!psPreviousEntry)
@@ -513,7 +397,7 @@ int CMainLogic::CheckTokenSyntax(S_TOKENENTRY* pasTokenEntries, size_t AmountEnt
 			else// 2nd+ number
 			{
 				// if previous token is a number, error
-				if (psPreviousEntry->m_Type == TET_NUMBER)
+				if (psPreviousEntry->m_Type == TOT_NUMBER)
 				{
 					m_Log.LogErr("%d. token '%s', number must not be followed by another number", i + 1, psCurrentEntry->m_aToken);
 					return ERROR;
@@ -527,16 +411,16 @@ int CMainLogic::CheckTokenSyntax(S_TOKENENTRY* pasTokenEntries, size_t AmountEnt
 		// prepare next loop
 		psPreviousEntry = psCurrentEntry;
 	}
-
+	*/
 	return OK;
 }
 
-U64 CMainLogic::CalculateTokens(S_TOKENENTRY* pasTokenEntries, size_t AmountEntries)
+U64 CMainLogic::Calculate(S_TOKEN* pasTokenEntries, size_t AmountEntries)
 {
-	S_TOKENENTRY* psCurrentEntry = 0;
-	S_TOKENENTRY asCalculation[CMAINLOGIC_CONSOLE_TOKENS];
-	S_TOKENENTRY asTempCalculation[ARRAYSIZE(asCalculation)];
-	S_TOKENENTRY sTempTokenEntry;
+	S_TOKEN* psCurrentEntry = 0;
+	S_TOKEN asCalculation[CMAINLOGIC_CONSOLE_TOKENS];
+	S_TOKEN asTempCalculation[ARRAYSIZE(asCalculation)];
+	S_TOKEN sTempTokenEntry;
 	bool anyCalculationsLeft = true;
 	U64 result = 0;
 	int firstNumIndex = 0;
@@ -548,7 +432,7 @@ U64 CMainLogic::CalculateTokens(S_TOKENENTRY* pasTokenEntries, size_t AmountEntr
 	int amountTokensDisposed = 0;
 
 	// reset structs
-	memset(asCalculation, 0, ARRAYSIZE(asCalculation) * sizeof(S_TOKENENTRY));
+	memset(asCalculation, 0, ARRAYSIZE(asCalculation) * sizeof(S_TOKEN));
 
 	// copy original token entries
 	for (int i = 0; i < AmountEntries; ++i)
@@ -561,7 +445,7 @@ U64 CMainLogic::CalculateTokens(S_TOKENENTRY* pasTokenEntries, size_t AmountEntr
 		for (int i = 0; i < amountCurrentEntries; ++i)
 		{
 			// reset values
-			memset(asTempCalculation, 0, ARRAYSIZE(asTempCalculation) * sizeof(S_TOKENENTRY));
+			memset(asTempCalculation, 0, ARRAYSIZE(asTempCalculation) * sizeof(S_TOKEN));
 			firstNumIndex = -1;
 			firstSignIndex = -1;
 			secondNumIndex = -1;
@@ -574,7 +458,7 @@ U64 CMainLogic::CalculateTokens(S_TOKENENTRY* pasTokenEntries, size_t AmountEntr
 				// determine first num index if not yet found
 				if (firstNumIndex < 0)
 				{
-					if (asCalculation[index].m_Type == TET_NUMBER)
+					if (asCalculation[index].m_TokType == TOT_NUMBER)
 					{
 						firstNumIndex = index;
 
@@ -585,7 +469,7 @@ U64 CMainLogic::CalculateTokens(S_TOKENENTRY* pasTokenEntries, size_t AmountEntr
 				}
 				else if (secondNumIndex < 0)// determine second num index if not yet found
 				{
-					if (index != firstNumIndex && asCalculation[index].m_Type == TET_NUMBER)
+					if (index != firstNumIndex && asCalculation[index].m_TokType == TOT_NUMBER)
 					{
 						secondNumIndex = index;
 
@@ -624,47 +508,48 @@ U64 CMainLogic::CalculateTokens(S_TOKENENTRY* pasTokenEntries, size_t AmountEntr
 			{
 				U64 firstNum = asCalculation[firstNumIndex].m_Number;
 				U64 secondNum = asCalculation[secondNumIndex].m_Number;
-				E_SIGNS firstSignType = (E_SIGNS)-1;
-				E_SIGNS secondSignType = (E_SIGNS)-1;
+				E_OPTYPES firstSignType = (E_OPTYPES)-1;
+				E_OPTYPES secondSignType = (E_OPTYPES)-1;
 
 				// sign types (first one does not have to have a sign)
 				if (firstSignIndex >= 0)
-					firstSignType = asCalculation[firstSignIndex].m_Sign;
+					firstSignType = asCalculation[firstSignIndex].m_OpType;
 
-				secondSignType = asCalculation[secondSignIndex].m_Sign;
+				secondSignType = asCalculation[secondSignIndex].m_OpType;
 
 				// modify numbers
-				firstNum = ModifyNumberBySign(firstNum, firstSignType);
-				//secondNum = ModifyNumberBySign(secondNum, secondSignType);
+				firstNum = ModifyNumberByOperator(firstNum, firstSignType);
+				//secondNum = ModifyNumberByOperator(secondNum, secondSignType);
 
 				// calculate
+
 				switch (secondSignType)
 				{
-				case SIG_ADD:
+				case OPT_ADD:
 					tempResult = firstNum + secondNum;
 					break;
 
-				case SIG_SUBTRACT:
+				case OPT_SUBTRACT:
 					tempResult = firstNum - secondNum;
 					break;
 
-				case SIG_AND:
+				case OPT_AND:
 					tempResult = firstNum & secondNum;
 					break;
 
-				case SIG_OR:
+				case OPT_OR:
 					tempResult = firstNum | secondNum;
 					break;
 
-				case SIG_XOR:
+				case OPT_XOR:
 					tempResult = firstNum ^ secondNum;
 					break;
 
-				case SIG_INVERT:
+				case OPT_INVERT:
 					tempResult = firstNum + secondNum;
 					break;
 
-				//case SIG_REVERT:
+				//case OPT_REVERT:
 				//	tempResult = firstNum + secondNum;
 				//	break;
 				}
@@ -677,7 +562,7 @@ U64 CMainLogic::CalculateTokens(S_TOKENENTRY* pasTokenEntries, size_t AmountEntr
 		memset(&sTempTokenEntry, 0, sizeof(sTempTokenEntry));
 
 		sTempTokenEntry.m_Number = tempResult;
-		sTempTokenEntry.m_Type = TET_NUMBER;
+		sTempTokenEntry.m_TokType = TOT_NUMBER;
 
 		// crop calculation
 		asTempCalculation[0] = sTempTokenEntry;
@@ -713,22 +598,22 @@ void CMainLogic::PrintResult(U64 Result)
 	char aNumHex[256] = { 0 };
 	int retval = 0;
 
-	CCore::NumToString(Result, CCore::NUMFORM_BINARY, aNumBin, ARRAYSIZE(aNumBin));
-	CCore::NumToString(Result, CCore::NUMFORM_DUAL, aNumDua, ARRAYSIZE(aNumDua));
-	CCore::NumToString(Result, CCore::NUMFORM_OCTAL, aNumOct, ARRAYSIZE(aNumOct));
-	CCore::NumToString(Result, CCore::NUMFORM_DECIMAL, aNumDec, ARRAYSIZE(aNumDec));
-	CCore::NumToString(Result, CCore::NUMFORM_HEXADECIMAL, aNumHex, ARRAYSIZE(aNumHex));
+	NumToString(Result, NUT_BINARY, aNumBin, ARRAYSIZE(aNumBin));
+	NumToString(Result, NUT_DUAL, aNumDua, ARRAYSIZE(aNumDua));
+	NumToString(Result, NUT_OCTAL, aNumOct, ARRAYSIZE(aNumOct));
+	NumToString(Result, NUT_DECIMAL, aNumDec, ARRAYSIZE(aNumDec));
+	NumToString(Result, NUT_HEXADECIMAL, aNumHex, ARRAYSIZE(aNumHex));
 
 	m_Log.Log("| %s | 0x%s | 0b%s | 0d%s | 0o%s |", aNumDec, aNumHex, aNumBin, aNumDua, aNumOct);
 }
 
-U64 CMainLogic::ModifyNumberBySign(U64 Number, E_SIGNS Sign)
+U64 CMainLogic::ModifyNumberByOperator(U64 Number, E_OPTYPES Sign)
 {
 	U64 result = Number;
 
 	switch (Sign)
 	{
-	case SIG_SUBTRACT:
+	case OPT_SUBTRACT:
 		result *= -1;
 		break;
 	}
@@ -736,17 +621,17 @@ U64 CMainLogic::ModifyNumberBySign(U64 Number, E_SIGNS Sign)
 	return result;
 }
 
-int CMainLogic::GetSignFlags(E_SIGNS Sign, int SigFlags)
+int CMainLogic::GetOperatorFlags(E_OPTYPES Sign, int SigFlags)
 {
-	S_SIGN *pSign = 0;
+	S_OPERATOR *pOperator = 0;
 
 	// look for matching sign in array and return flags
-	for (int i = 0; i < ARRAYSIZE(m_asSigns); ++i)
+	for (int i = 0; i < ARRAYSIZE(m_asOperators); ++i)
 	{
-		if (m_asSigns[i].m_Type == Sign)
+		if (m_asOperators[i].m_OpType == Sign)
 		{
-			pSign = &m_asSigns[i];
-			return (pSign->m_Flags & SigFlags);
+			pOperator = &m_asOperators[i];
+			return (m_asOperators->m_Flags & SigFlags);
 		}
 	}
 
@@ -759,15 +644,134 @@ int CMainLogic::GetFlags(int Value, int Flags)
 	return (Value | Flags);
 }
 
-CMainLogic::S_NUMPREFIX* CMainLogic::GetNumPrefix(E_NUMBERTYPES Type)
+CMainLogic::S_NUMBER* CMainLogic::GetNumberFromType(E_NUMTYPES NumType)
 {
-	for (int i = 0; i < ARRAYSIZE(m_asNumPrefixes); ++i)
+	for (int i = 0; i < ARRAYSIZE(m_asNumbers); ++i)
 	{
-		if (Type == m_asNumPrefixes[i].m_Type)
-			return &m_asNumPrefixes[i];
+		if (NumType == m_asNumbers[i].m_NumType)
+			return &m_asNumbers[i];
 	}
 
-	return &m_asNumPrefixes[NUT_INVALID];
+	return &m_asNumbers[NUT_INVALID];
+}
+
+CMainLogic::S_NUMBER* CMainLogic::GetNumberFromPrefix(const char *pPrefix)
+{
+	for (int i = 0; i < ARRAYSIZE(m_asNumbers); ++i)
+	{
+		if (CCore::StringCompareNocase(pPrefix, m_asNumbers[i].m_aPrefix, CMAINLOGIC_CONSOLE_TOKEN_SIZE) == 0)
+			return &m_asNumbers[i];
+	}
+
+	return &m_asNumbers[NUT_INVALID];
+}
+
+bool CMainLogic::CheckStringFormat(const char* pNumber, E_NUMTYPES NumType)
+{
+	switch (NumType)
+	{
+	case NUT_BINARY:
+		for (; *pNumber; ++pNumber)
+		{
+			if (*pNumber < '0' || *pNumber > '1')
+				return false;
+		}
+		break;
+
+	case NUT_DUAL:
+		for (; *pNumber; ++pNumber)
+		{
+			if (*pNumber < '0' || *pNumber > '3')
+				return false;
+		}
+		break;
+
+	case NUT_OCTAL:
+		for (; *pNumber; ++pNumber)
+		{
+			if (*pNumber < '0' || *pNumber > '7')
+				return false;
+		}
+		break;
+
+	case NUT_DECIMAL:
+		for (; *pNumber; ++pNumber)
+		{
+			if (*pNumber < '0' || *pNumber > '9')
+				return false;
+		}
+		break;
+
+	case NUT_HEXADECIMAL:
+		for (; *pNumber; ++pNumber)
+		{
+			if (!((*pNumber >= '0' && *pNumber <= '9') ||
+				(*pNumber >= 'A' && *pNumber <= 'F') ||
+				(*pNumber >= 'a' && *pNumber <= 'f')))
+				return false;
+		}
+		break;
+	}
+
+	return true;
+}
+
+int CMainLogic::NumToString(U64 Number, E_NUMTYPES NumType, char* pResult, size_t LenResult)
+{
+	int i = 0;
+	int mask = 0;
+	int rshift = 0;
+	int digit = 0;
+	char aDigit[2] = { 0 };
+	int lastPosRelevant = 0;
+
+	switch (NumType)
+	{
+	case NUT_BINARY:
+		mask = 0x01;
+		rshift = 1;
+		break;
+
+	case NUT_DUAL:
+		mask = 0x03;
+		rshift = 2;
+		break;
+
+	case NUT_OCTAL:
+		mask = 0x07;
+		rshift = 3;
+		break;
+
+	case NUT_DECIMAL:
+		snprintf(pResult, LenResult, "%llu", Number);
+		return OK;
+
+	case NUT_HEXADECIMAL:
+		snprintf(pResult, LenResult, "%llX", Number);
+		return OK;
+
+	default:
+		return ERROR;
+		break;
+	}
+
+	for (i = 0; i < MIN(sizeof(U64) * 8, LenResult); i++)
+	{
+		digit = Number & mask;
+		snprintf(aDigit, ARRAYSIZE(aDigit), "%d", digit);
+		Number >>= rshift;
+
+		if (aDigit[0] != '0')
+			lastPosRelevant = i;
+
+		pResult[i] = aDigit[0];
+	}
+
+	pResult[lastPosRelevant + 1] = '\0';
+
+	CCore::StringRevert(pResult);
+
+	return OK;
 }
 
 int CMainLogic::ComHelp(E_COMMANDS ID)
@@ -783,7 +787,7 @@ int CMainLogic::ComHelp(E_COMMANDS ID)
 		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX "Enter a calculation or one of the commands below.");
 		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX "Max. number size is 64 bit.");
 		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX "All input is case insensitive.");
-		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX "Default number type (when no prefix is given): %s", GetNumPrefix(m_DefaultInputFormat)->m_aName);
+		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX "Default number type (when no prefix is given): %s", GetNumberFromType(m_DefaultInputFormat)->m_aName);
 		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX "Auto saving: %s", 1 == 1 ? "On" : "Off");
 		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX);
 
@@ -812,11 +816,11 @@ int CMainLogic::ComHelp(E_COMMANDS ID)
 
 		// NUMPREFIXES
 		m_Log.Log(CMAINLOGIC_COMHELP_HEADER_NUMPREFIXES);
-		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX "%s... " , GetNumPrefix(NUT_BINARY)->m_aName);
-		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX "%s... " , GetNumPrefix(NUT_DUAL)->m_aName);
-		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX "%s... " , GetNumPrefix(NUT_OCTAL)->m_aName);
-		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX "%s... " , GetNumPrefix(NUT_DECIMAL)->m_aName);
-		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX "%s... " , GetNumPrefix(NUT_HEXADECIMAL)->m_aName);
+		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX "%s... " , GetNumberFromType(NUT_BINARY)->m_aName);
+		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX "%s... " , GetNumberFromType(NUT_DUAL)->m_aName);
+		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX "%s... " , GetNumberFromType(NUT_OCTAL)->m_aName);
+		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX "%s... " , GetNumberFromType(NUT_DECIMAL)->m_aName);
+		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX "%s... " , GetNumberFromType(NUT_HEXADECIMAL)->m_aName);
 		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX);
 
 		// OPERATORS
@@ -907,7 +911,7 @@ int CMainLogic::ComSetinputformat(const char *pType)
 
 int CMainLogic::ComSetnumberprefix(const char *pType, const char *pPrefix)
 {
-	E_NUMBERTYPES numberType = NUT_INVALID;
+	E_NUMTYPES numberType = NUT_INVALID;
 
 	if (CCore::StringCompareNocase(pType, CMAINLOGIC_NUMNAME_BINARY, CMAINLOGIC_CONSOLE_TOKEN_SIZE) == 0)
 		numberType = NUT_BINARY;

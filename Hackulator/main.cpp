@@ -7,10 +7,11 @@
 #include "mainlogic.h"
 
 /* TODO
+	TODOs in mainlogic.c/h
 	custom prefixes and symbols
 	tabulator, space as allowed whitespaces
 	aaToken[][] --> *
-	square ("), %, #<ascii value>
+	NUT_ASCII
 	Fullscreen check live and save on change
 	help should explain every single aspect of the hackulator (help file cause too complicated? generatehelp?)
 	Use math library to not have to make own syntax (Otherwise Algorithms to code self: "Shunting yard", "Reverse polish notation")

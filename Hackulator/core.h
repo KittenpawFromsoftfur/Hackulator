@@ -20,15 +20,6 @@
 class CCore
 {
 public:
-    enum E_NUMBERFORMAT
-    {
-        NUMFORM_BINARY,
-        NUMFORM_DUAL,
-        NUMFORM_OCTAL,
-        NUMFORM_DECIMAL,
-        NUMFORM_HEXADECIMAL,
-    };
-
     CCore();
     ~CCore();
     static int StringCompareNocase(const char* pSource, const char* pDest, size_t Len);
@@ -38,8 +29,6 @@ public:
     static char* StringFindFirstCharacter(char* pSource, const char* const pCharacters);
     static char* StringFindLastCharacter(char* const pSource, const char* const pCharacters);
     static bool CharContains(char Char, const char* pCharacters);
-    static bool CheckStringFormat(const char* pNumber, E_NUMBERFORMAT Format);
-    static int NumToString(U64 Number, E_NUMBERFORMAT Format, char* pResult, size_t LenResult);
     static bool CheckFileExists(const char* pFilePath);
     static U64 PowULL(U64 Base, int Exponent);
     static void Exit(int ExitCode);
