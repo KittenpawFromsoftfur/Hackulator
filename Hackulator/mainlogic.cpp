@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <Windows.h>
 #include <stdexcept>
+#include <stdarg.h>
 
 #include "mainlogic.h"
 #include "core.h"
@@ -18,6 +19,36 @@ CMainLogic::CMainLogic(bool StartFullscreen, char *pSaveFilePath) : m_SaveFile(t
 	m_StartFullscreen = StartFullscreen;
 	if (m_StartFullscreen)
 		ShowWindow(GetConsoleWindow(), SW_MAXIMIZE);
+
+	// load save file
+	retval = m_SaveFile.Load();
+	if (retval != OK)
+		CCore::Exit(EXITCODE_ERR_MAINLOGIC);
+
+	// apply loaded data
+	// number prefixes
+	strncpy(m_asNumbers[NUT_BINARY].m_aPrefix, m_SaveFile.m_asSaveKeys[CSaveFile::SK_NUMPREFIX_BINARY].m_aValue, ARRAYSIZE(m_asNumbers[0].m_aPrefix));
+	strncpy(m_asNumbers[NUT_DUAL].m_aPrefix, m_SaveFile.m_asSaveKeys[CSaveFile::SK_NUMPREFIX_DUAL].m_aValue, ARRAYSIZE(m_asNumbers[0].m_aPrefix));
+	strncpy(m_asNumbers[NUT_OCTAL].m_aPrefix, m_SaveFile.m_asSaveKeys[CSaveFile::SK_NUMPREFIX_OCTAL].m_aValue, ARRAYSIZE(m_asNumbers[0].m_aPrefix));
+	strncpy(m_asNumbers[NUT_DECIMAL].m_aPrefix, m_SaveFile.m_asSaveKeys[CSaveFile::SK_NUMPREFIX_DECIMAL].m_aValue, ARRAYSIZE(m_asNumbers[0].m_aPrefix));
+	strncpy(m_asNumbers[NUT_HEXADECIMAL].m_aPrefix, m_SaveFile.m_asSaveKeys[CSaveFile::SK_NUMPREFIX_HEXADECIMAL].m_aValue, ARRAYSIZE(m_asNumbers[0].m_aPrefix));
+
+	// operator prefixes
+	strncpy(m_asOperators[OPT_ADD].m_aOperator, m_SaveFile.m_asSaveKeys[CSaveFile::SK_OPPREFIX_ADD].m_aValue, ARRAYSIZE(m_asNumbers[0].m_aPrefix));
+	strncpy(m_asOperators[OPT_SUBTRACT].m_aOperator, m_SaveFile.m_asSaveKeys[CSaveFile::SK_OPPREFIX_SUBTRACT].m_aValue, ARRAYSIZE(m_asNumbers[0].m_aPrefix));
+	strncpy(m_asOperators[OPT_MULTIPLY].m_aOperator, m_SaveFile.m_asSaveKeys[CSaveFile::SK_OPPREFIX_MULTIPLY].m_aValue, ARRAYSIZE(m_asNumbers[0].m_aPrefix));
+	strncpy(m_asOperators[OPT_DIVIDE].m_aOperator, m_SaveFile.m_asSaveKeys[CSaveFile::SK_OPPREFIX_DIVIDE].m_aValue, ARRAYSIZE(m_asNumbers[0].m_aPrefix));
+	strncpy(m_asOperators[OPT_EXPONENTIAL].m_aOperator, m_SaveFile.m_asSaveKeys[CSaveFile::SK_OPPREFIX_EXPONENTIAL].m_aValue, ARRAYSIZE(m_asNumbers[0].m_aPrefix));
+	strncpy(m_asOperators[OPT_MODULO].m_aOperator, m_SaveFile.m_asSaveKeys[CSaveFile::SK_OPPREFIX_MODULO].m_aValue, ARRAYSIZE(m_asNumbers[0].m_aPrefix));
+	strncpy(m_asOperators[OPT_AND].m_aOperator, m_SaveFile.m_asSaveKeys[CSaveFile::SK_OPPREFIX_AND].m_aValue, ARRAYSIZE(m_asNumbers[0].m_aPrefix));
+	strncpy(m_asOperators[OPT_OR].m_aOperator, m_SaveFile.m_asSaveKeys[CSaveFile::SK_OPPREFIX_OR].m_aValue, ARRAYSIZE(m_asNumbers[0].m_aPrefix));
+	strncpy(m_asOperators[OPT_XOR].m_aOperator, m_SaveFile.m_asSaveKeys[CSaveFile::SK_OPPREFIX_XOR].m_aValue, ARRAYSIZE(m_asNumbers[0].m_aPrefix));
+	strncpy(m_asOperators[OPT_INVERT].m_aOperator, m_SaveFile.m_asSaveKeys[CSaveFile::SK_OPPREFIX_INVERT].m_aValue, ARRAYSIZE(m_asNumbers[0].m_aPrefix));
+	strncpy(m_asOperators[OPT_REVERT].m_aOperator, m_SaveFile.m_asSaveKeys[CSaveFile::SK_OPPREFIX_REVERT].m_aValue, ARRAYSIZE(m_asNumbers[0].m_aPrefix));
+	strncpy(m_asOperators[OPT_LSHIFT].m_aOperator, m_SaveFile.m_asSaveKeys[CSaveFile::SK_OPPREFIX_LSHIFT].m_aValue, ARRAYSIZE(m_asNumbers[0].m_aPrefix));
+	strncpy(m_asOperators[OPT_RSHIFT].m_aOperator, m_SaveFile.m_asSaveKeys[CSaveFile::SK_OPPREFIX_RSHIFT].m_aValue, ARRAYSIZE(m_asNumbers[0].m_aPrefix));
+	strncpy(m_asOperators[OPT_BRACKET_OPEN].m_aOperator, m_SaveFile.m_asSaveKeys[CSaveFile::SK_OPPREFIX_BRACKET_OPEN].m_aValue, ARRAYSIZE(m_asNumbers[0].m_aPrefix));
+	strncpy(m_asOperators[OPT_BRACKET_CLOSE].m_aOperator, m_SaveFile.m_asSaveKeys[CSaveFile::SK_OPPREFIX_BRACKET_CLOSE].m_aValue, ARRAYSIZE(m_asNumbers[0].m_aPrefix));
 }
 
 CMainLogic::~CMainLogic()
@@ -81,7 +112,7 @@ int CMainLogic::ParseInput(const char* pInput, size_t LenInput, char *paaToken, 
 	char aTempBuf[ARRAYSIZE(aTokenBuf)] = { 0 };
 	bool stringEnd = false;
 	bool charIsDelim = false;
-	bool charIsSymbol = false;
+	bool charIsOperator = false;
 	bool copyToken = false;
 	int tokensCopied = 0;
 
@@ -92,14 +123,14 @@ int CMainLogic::ParseInput(const char* pInput, size_t LenInput, char *paaToken, 
 		if (!pInput[i] || i >= LenInput - 1)
 			stringEnd = true;
 
-		// determine if char is symbol
-		charIsSymbol = false;
+		// determine if char is operator
+		charIsOperator = false;
 
 		for (int opInd = 0; opInd < ARRAYSIZE(m_asOperators); ++opInd)
 		{
 			if (CCore::CharContains(pInput[i], m_asOperators[i].m_aOperator))
 			{
-				charIsSymbol = true;
+				charIsOperator = true;
 				break;
 			}
 		}
@@ -118,7 +149,7 @@ int CMainLogic::ParseInput(const char* pInput, size_t LenInput, char *paaToken, 
 			if (strnlen(aTokenBuf, ARRAYSIZE(aTokenBuf)) > 0)
 				copyToken = true;
 		}
-		else if (charIsSymbol)// if char is symbol
+		else if (charIsOperator)// if char is operator
 		{
 			// it will only be copied to token buffer if the buffer is empty
 			if (strnlen(aTokenBuf, ARRAYSIZE(aTokenBuf)) == 0)
@@ -171,11 +202,11 @@ int CMainLogic::ParseInput(const char* pInput, size_t LenInput, char *paaToken, 
 int CMainLogic::EvaluateTokens(char aaToken[CMAINLOGIC_CONSOLE_TOKENS][CMAINLOGIC_CONSOLE_TOKEN_SIZE])
 {
 	int retval = 0;
-	S_TOKEN asTokenEntries[CMAINLOGIC_CONSOLE_TOKENS];
-	int amountEntries = 0;
+	S_TOKEN asToken[CMAINLOGIC_CONSOLE_TOKENS];
+	int amountTokens = 0;
 	U64 result = 0;
 
-	memset(asTokenEntries, 0, ARRAYSIZE(asTokenEntries) * sizeof(S_TOKEN));
+	memset(asToken, 0, ARRAYSIZE(asToken) * sizeof(S_TOKEN));
 
 	// look for command
 	for (int i = 0; i < ARRAYSIZE(m_asCommands); ++i)
@@ -195,42 +226,42 @@ int CMainLogic::EvaluateTokens(char aaToken[CMAINLOGIC_CONSOLE_TOKENS][CMAINLOGI
 
 		// determine token type
 		// check for numbers
-		if (ExtractNumberFromToken(aaToken[i], &asTokenEntries[i].m_Number) == OK)
+		if (ExtractNumberFromToken(aaToken[i], &asToken[i].m_Number) == OK)
 		{
-			asTokenEntries[i].m_TokType = TOT_NUMBER;
-		}// check for signs
-		else if ((asTokenEntries[i].m_OpType = GetOperatorFromToken(aaToken[i])->m_OpType) != (E_OPTYPES)-1)
+			asToken[i].m_TokType = TOT_NUMBER;
+		}// check for operators
+		else if ((asToken[i].m_OpType = GetOperatorFromToken(aaToken[i])->m_OpType) != (E_OPTYPES)-1)
 		{
-			asTokenEntries[i].m_TokType = TOT_OPERATOR;
+			asToken[i].m_TokType = TOT_OPERATOR;
 		}
 		else
 		{
-			asTokenEntries[i].m_TokType = (E_TOKTYPES)-1;
+			asToken[i].m_TokType = (E_TOKTYPES)-1;
 		}
 
-		// check token validity and fill rest of token entry data
-		if (asTokenEntries[i].m_TokType == (E_TOKTYPES)-1)
+		// check token validity and fill rest of token data
+		if (asToken[i].m_TokType == (E_TOKTYPES)-1)
 		{
 			m_Log.LogErr("%d. token '%s' is an invalid token (expected %s number format)", i + 1, aaToken[i], GetNumberFromType(m_DefaultInputFormat)->m_aName);
 			return ERROR;
 		}
 
-		strncpy(asTokenEntries[i].m_aToken, aaToken[i], ARRAYSIZE(aaToken[0]));
-		amountEntries++;
+		strncpy(asToken[i].m_aToken, aaToken[i], ARRAYSIZE(aaToken[0]));
+		amountTokens++;
 
-		//if (asTokenEntries[i].m_TokType == TOT_NUMBER)
-		//	m_Log.Log("--> %llu", asTokenEntries[i].number);
+		//if (asToken[i].m_TokType == TOT_NUMBER)
+		//	m_Log.Log("--> %llu", asToken[i].number);
 		//else
-		//	m_Log.Log("--> %s", asTokenEntries[i].aToken);
+		//	m_Log.Log("--> %s", asToken[i].aToken);
 	}
 
 	// evaluate syntax
-	retval = CheckSyntax(asTokenEntries, amountEntries);
+	retval = CheckSyntax(asToken, amountTokens);
 	if (retval != OK)
 		return ERROR;
 
 	// calculate tokens
-	result = Calculate(asTokenEntries, amountEntries);
+	result = Calculate(asToken, amountTokens);
 
 	// print result
 	PrintResult(result);
@@ -246,6 +277,8 @@ int CMainLogic::ExecuteCommand(E_COMMANDS ID, char aaToken[CMAINLOGIC_CONSOLE_TO
 	{
 	case COM_HELP:
 		ComHelp((E_COMMANDS) - 1);
+
+		GetUserAnswer("hello %s <%s> you stuupeeed", 33, "heyaa");// laststop
 		break;
 
 	case COM_SET_INPUTFORMAT:
@@ -325,6 +358,17 @@ int CMainLogic::ExtractNumberFromToken(const char* paToken, U64 *pNumber)
 	return OK;
 }
 
+CMainLogic::S_OPERATOR* CMainLogic::GetOperatorFromType(E_OPTYPES OpType)
+{
+	for (int i = 0; i < ARRAYSIZE(m_asOperators); ++i)
+	{
+		if (OpType == m_asOperators[i].m_OpType)
+			return &m_asOperators[i];
+	}
+
+	return &m_asOperators[OPT_INVALID];
+}
+
 CMainLogic::S_OPERATOR* CMainLogic::GetOperatorFromToken(const char* paToken)
 {
 	for (int i = 0; i < ARRAYSIZE(m_asOperators); ++i)
@@ -336,113 +380,111 @@ CMainLogic::S_OPERATOR* CMainLogic::GetOperatorFromToken(const char* paToken)
 	return &m_asOperators[OPT_INVALID];
 }
 
-int CMainLogic::CheckSyntax(S_TOKEN* pasToken, size_t AmountEntries)// TODO "entries" --> ""
+int CMainLogic::CheckSyntax(S_TOKEN* pasToken, size_t AmountTokens)
 {
-/*	int prevSignFlags = 0;
-	S_TOKEN *psPreviousEntry = 0;
-	S_TOKEN* psCurrentEntry = 0;
+	int prevOpFlags = 0;
+	S_TOKEN *psPrevious = 0;
+	S_TOKEN* psCurrent = 0;
 	U64 synflags = 0;
-	E_OPTYPES aSignsNotAllowedFirst[] = { OPT_AND, OPT_OR, OPT_XOR };
 
 	// check token for token
-	for (int i = 0; i < AmountEntries; ++i)
+	for (int i = 0; i < AmountTokens; ++i)
 	{
 		// resets
-		psCurrentEntry = &pasTokenEntries[i];
+		psCurrent = &pasToken[i];
 		
 		if (i > 0)
-			psPreviousEntry = &pasTokenEntries[i - 1];
+			psPrevious = &pasToken[i - 1];
 		
 		// check tokens who are signs
-		if (psCurrentEntry->m_Type == TOT_OPERATOR)
+		if (psCurrent->m_TokType == TOT_OPERATOR)
 		{
 			// first sign must not be a combining sign
 			// however some combining signs double as number-modifying signs, keep that in mind
-			if (!psPreviousEntry)
+			if (!psPrevious)
 			{
-				if ((GetSignFlags(psCurrentEntry->m_Sign, SIGFLAG_COMBINE) > 0) &&
-					(GetSignFlags(psCurrentEntry->m_Sign, SIGFLAG_MODIFYNUM) == 0))
+				if ((GetOperatorFlags(psCurrent->m_OpType, OPFLAG_COMBINE) > 0) &&
+					(GetOperatorFlags(psCurrent->m_OpType, OPFLAG_MODIFYNUM) == 0))
 				{
-					m_Log.LogErr("%d. token '%s', first token must not be a combining sign", i + 1, psCurrentEntry->m_aToken);
+					m_Log.LogErr("%d. token '%s', first token must not be a combining sign", i + 1, psCurrent->m_aToken);
 					return ERROR;
 				}
 			}
 			else// 2nd+ signs
 			{
 				// if previous sign was combining or modifies a number, the next token has to be a number
-				if ((GetSignFlags(psCurrentEntry->m_Sign, prevSignFlags) & (SIGFLAG_COMBINE || SIGFLAG_MODIFYNUM)) > 0)
+				if ((GetOperatorFlags(psCurrent->m_OpType, prevOpFlags) & (OPFLAG_COMBINE || OPFLAG_MODIFYNUM)) > 0)
 				{
-					m_Log.LogErr("%d. token '%s', number-combining or number-modifying signs must be followed by a number", i + 1, psCurrentEntry->m_aToken);
+					m_Log.LogErr("%d. token '%s', number-combining or number-modifying signs must be followed by a number", i + 1, psCurrent->m_aToken);
 					return ERROR;
 				}
 
-				// last entry must not be a sign
-				if (i >= AmountEntries - 1)
+				// last token must not be a sign
+				if (i >= AmountTokens - 1)
 				{
-					m_Log.LogErr("%d. token '%s', last token must not be a number-combining or number-modifying sign", i + 1, psCurrentEntry->m_aToken);
+					m_Log.LogErr("%d. token '%s', last token must not be a number-combining or number-modifying sign", i + 1, psCurrent->m_aToken);
 					return ERROR;
 				}
 			}
 
 			// prepare next loop
-			prevSignFlags = GetSignFlags(psCurrentEntry->m_Sign, SIGFLAG_ALL);
+			prevOpFlags = GetOperatorFlags(psCurrent->m_OpType, OPFLAG_ALL);
 		}
-		else if (psCurrentEntry->m_Type == TOT_NUMBER)// check tokens who are numbers
+		else if (psCurrent->m_TokType == TOT_NUMBER)// check tokens who are numbers
 		{
 			// first number
-			if (!psPreviousEntry)
+			if (!psPrevious)
 			{
 				// everything allowed
 			}
 			else// 2nd+ number
 			{
 				// if previous token is a number, error
-				if (psPreviousEntry->m_Type == TOT_NUMBER)
+				if (psPrevious->m_TokType == TOT_NUMBER)
 				{
-					m_Log.LogErr("%d. token '%s', number must not be followed by another number", i + 1, psCurrentEntry->m_aToken);
+					m_Log.LogErr("%d. token '%s', number must not be followed by another number", i + 1, psCurrent->m_aToken);
 					return ERROR;
 				}
 			}
 
 			// prepare next loop
-			prevSignFlags = 0;
+			prevOpFlags = 0;
 		}
 
 		// prepare next loop
-		psPreviousEntry = psCurrentEntry;
+		psPrevious = psCurrent;
 	}
-	*/
+
 	return OK;
 }
 
-U64 CMainLogic::Calculate(S_TOKEN* pasTokenEntries, size_t AmountEntries)
+U64 CMainLogic::Calculate(S_TOKEN* pasToken, size_t AmountTokens)
 {
-	S_TOKEN* psCurrentEntry = 0;
 	S_TOKEN asCalculation[CMAINLOGIC_CONSOLE_TOKENS];
 	S_TOKEN asTempCalculation[ARRAYSIZE(asCalculation)];
-	S_TOKEN sTempTokenEntry;
+	S_TOKEN sTempToken;
 	bool anyCalculationsLeft = true;
 	U64 result = 0;
 	int firstNumIndex = 0;
 	int firstSignIndex = 0;
 	int secondNumIndex = 0;
 	int secondSignIndex = 0;
-	int amountCurrentEntries = AmountEntries;
+	int amountCurrentTokens = AmountTokens;
 	U64 tempResult = 0;
 	int amountTokensDisposed = 0;
 
 	// reset structs
 	memset(asCalculation, 0, ARRAYSIZE(asCalculation) * sizeof(S_TOKEN));
 
-	// copy original token entries
-	for (int i = 0; i < AmountEntries; ++i)
-		asCalculation[i] = pasTokenEntries[i];
+	// copy original tokens
+	for (int i = 0; i < AmountTokens; ++i)
+		asCalculation[i] = pasToken[i];
 
 	// calculation loop, simple from left to right
 	while (1)
 	{
 		// repeat calculation until only one number is left
-		for (int i = 0; i < amountCurrentEntries; ++i)
+		for (int i = 0; i < amountCurrentTokens; ++i)
 		{
 			// reset values
 			memset(asTempCalculation, 0, ARRAYSIZE(asTempCalculation) * sizeof(S_TOKEN));
@@ -453,7 +495,7 @@ U64 CMainLogic::Calculate(S_TOKEN* pasTokenEntries, size_t AmountEntries)
 			amountTokensDisposed = 0;
 
 			// determine number and sign indices
-			for (int index = 0; index < amountCurrentEntries; ++index)
+			for (int index = 0; index < amountCurrentTokens; ++index)
 			{
 				// determine first num index if not yet found
 				if (firstNumIndex < 0)
@@ -559,24 +601,24 @@ U64 CMainLogic::Calculate(S_TOKEN* pasTokenEntries, size_t AmountEntries)
 		}
 
 		// assign new token
-		memset(&sTempTokenEntry, 0, sizeof(sTempTokenEntry));
+		memset(&sTempToken, 0, sizeof(sTempToken));
 
-		sTempTokenEntry.m_Number = tempResult;
-		sTempTokenEntry.m_TokType = TOT_NUMBER;
+		sTempToken.m_Number = tempResult;
+		sTempToken.m_TokType = TOT_NUMBER;
 
 		// crop calculation
-		asTempCalculation[0] = sTempTokenEntry;
+		asTempCalculation[0] = sTempToken;
 
-		for (int temp = 1; temp < (amountCurrentEntries - amountTokensDisposed); ++temp)
+		for (int temp = 1; temp < (amountCurrentTokens - amountTokensDisposed); ++temp)
 		{
 			asTempCalculation[temp] = asCalculation[temp + amountTokensDisposed - 1];
 		}
 
 		memcpy(asCalculation, asTempCalculation, sizeof(asTempCalculation[0]) * ARRAYSIZE(asTempCalculation));
 
-		amountCurrentEntries -= amountTokensDisposed;
+		amountCurrentTokens -= amountTokensDisposed;
 
-		if (amountCurrentEntries <= 0)
+		if (amountCurrentTokens <= 0)
 			anyCalculationsLeft = false;
 
 		// check if the calculation has finished
@@ -637,11 +679,6 @@ int CMainLogic::GetOperatorFlags(E_OPTYPES Sign, int SigFlags)
 
 	m_Log.LogErr("This should not occur, sign with index %d was not define in source code", Sign);
 	return 0;
-}
-
-int CMainLogic::GetFlags(int Value, int Flags)
-{
-	return (Value | Flags);
 }
 
 CMainLogic::S_NUMBER* CMainLogic::GetNumberFromType(E_NUMTYPES NumType)
@@ -774,6 +811,38 @@ int CMainLogic::NumToString(U64 Number, E_NUMTYPES NumType, char* pResult, size_
 	return OK;
 }
 
+CMainLogic::E_USERANSWERS CMainLogic::GetUserAnswer(const char *pQuestion, ...)
+{
+	va_list argptr;
+	va_start(argptr, pQuestion);
+	int retval = 0;
+	char aInput[CMAINLOGIC_CONSOLE_USERANSWER_BUFFERLEN] = { 0 };
+
+	// ask question
+	m_Log.LogCustomArg(CLog::CFL_NONEWLINE, pQuestion, argptr);
+	va_end(argptr);
+	
+	// suffix
+	m_Log.LogCustom(CLog::CFL_NONEWLINE, "? (y/n): ");
+
+	// parse input loop until question is answered
+	while (1)
+	{
+		// get user input
+		retval = scanf(" %" STRINGIFY_VALUE(CMAINLOGIC_CONSOLE_BUFFERLEN) "[^\n]", aInput);
+
+		if (retval <= 0)
+		{
+			m_Log.LogErr("Failed to scan input");
+			continue;
+		}
+		
+		m_Log.Log("User answered <%s>", aInput);
+	}
+
+	return ANS_INVALID;
+}
+
 int CMainLogic::ComHelp(E_COMMANDS ID)
 {
 	char aParameters[CMAINLOGIC_MAX_LEN_COMHELP_BUFFERS] = { 0 };
@@ -816,30 +885,30 @@ int CMainLogic::ComHelp(E_COMMANDS ID)
 
 		// NUMPREFIXES
 		m_Log.Log(CMAINLOGIC_COMHELP_HEADER_NUMPREFIXES);
-		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX "%s... " , GetNumberFromType(NUT_BINARY)->m_aName);
-		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX "%s... " , GetNumberFromType(NUT_DUAL)->m_aName);
-		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX "%s... " , GetNumberFromType(NUT_OCTAL)->m_aName);
-		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX "%s... " , GetNumberFromType(NUT_DECIMAL)->m_aName);
-		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX "%s... " , GetNumberFromType(NUT_HEXADECIMAL)->m_aName);
+		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX "%s... %s", GetNumberFromType(NUT_BINARY)->m_aName, GetNumberFromType(NUT_BINARY)->m_aPrefix);
+		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX "%s... %s", GetNumberFromType(NUT_DUAL)->m_aName, GetNumberFromType(NUT_DUAL)->m_aPrefix);
+		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX "%s... %s", GetNumberFromType(NUT_OCTAL)->m_aName, GetNumberFromType(NUT_OCTAL)->m_aPrefix);
+		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX "%s... %s", GetNumberFromType(NUT_DECIMAL)->m_aName, GetNumberFromType(NUT_DECIMAL)->m_aPrefix);
+		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX "%s... %s", GetNumberFromType(NUT_HEXADECIMAL)->m_aName, GetNumberFromType(NUT_HEXADECIMAL)->m_aPrefix);
 		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX);
 
 		// OPERATORS
 		m_Log.Log(CMAINLOGIC_COMHELP_HEADER_OPERATORS);
-		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX	CMAINLOGIC_OPNAME_ADD			"... ");
-		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX	CMAINLOGIC_OPNAME_SUBTRACT		"... ");
-		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX	CMAINLOGIC_OPNAME_MULTIPLY		"... ");
-		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX	CMAINLOGIC_OPNAME_DIVIDE		"... ");
-		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX	CMAINLOGIC_OPNAME_EXPONENTIAL	"... ");
-		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX	CMAINLOGIC_OPNAME_MODULO		"... ");
-		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX	CMAINLOGIC_OPNAME_AND			"... ");
-		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX	CMAINLOGIC_OPNAME_OR			"... ");
-		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX	CMAINLOGIC_OPNAME_XOR			"... ");
-		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX	CMAINLOGIC_OPNAME_INVERT		"... ");
-		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX	CMAINLOGIC_OPNAME_REVERT		"... ");
-		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX	CMAINLOGIC_OPNAME_LSHIFT		"... ");
-		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX	CMAINLOGIC_OPNAME_RSHIFT		"... ");
-		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX	CMAINLOGIC_OPNAME_BRACKET_OPEN	"... ");
-		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX	CMAINLOGIC_OPNAME_BRACKET_CLOSE	"... ");
+		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX	CMAINLOGIC_OPNAME_ADD			"... %s", GetOperatorFromType(OPT_ADD)->m_aOperator);
+		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX	CMAINLOGIC_OPNAME_SUBTRACT		"... %s", GetOperatorFromType(OPT_SUBTRACT)->m_aOperator);
+		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX	CMAINLOGIC_OPNAME_MULTIPLY		"... %s", GetOperatorFromType(OPT_MULTIPLY)->m_aOperator);
+		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX	CMAINLOGIC_OPNAME_DIVIDE		"... %s", GetOperatorFromType(OPT_DIVIDE)->m_aOperator);
+		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX	CMAINLOGIC_OPNAME_EXPONENTIAL	"... %s", GetOperatorFromType(OPT_EXPONENTIAL)->m_aOperator);
+		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX	CMAINLOGIC_OPNAME_MODULO		"... %s", GetOperatorFromType(OPT_MODULO)->m_aOperator);
+		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX	CMAINLOGIC_OPNAME_AND			"... %s", GetOperatorFromType(OPT_AND)->m_aOperator);
+		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX	CMAINLOGIC_OPNAME_OR			"... %s", GetOperatorFromType(OPT_OR)->m_aOperator);
+		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX	CMAINLOGIC_OPNAME_XOR			"... %s", GetOperatorFromType(OPT_XOR)->m_aOperator);
+		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX	CMAINLOGIC_OPNAME_INVERT		"... %s", GetOperatorFromType(OPT_INVERT)->m_aOperator);
+		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX	CMAINLOGIC_OPNAME_REVERT		"... %s", GetOperatorFromType(OPT_REVERT)->m_aOperator);
+		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX	CMAINLOGIC_OPNAME_LSHIFT		"... %s", GetOperatorFromType(OPT_LSHIFT)->m_aOperator);
+		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX	CMAINLOGIC_OPNAME_RSHIFT		"... %s", GetOperatorFromType(OPT_RSHIFT)->m_aOperator);
+		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX	CMAINLOGIC_OPNAME_BRACKET_OPEN	"... %s", GetOperatorFromType(OPT_BRACKET_OPEN)->m_aOperator);
+		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX	CMAINLOGIC_OPNAME_BRACKET_CLOSE	"... %s", GetOperatorFromType(OPT_BRACKET_CLOSE)->m_aOperator);
 		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX);
 
 		// NUMSHORTNAMES

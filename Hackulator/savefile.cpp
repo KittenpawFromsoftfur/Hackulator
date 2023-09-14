@@ -40,6 +40,25 @@ CSaveFile::~CSaveFile()
 
 }
 
+int CSaveFile::Load()
+{
+	int retval = 0;
+
+	for (int i = 0; i < AMOUNT_SAVEKEYS; ++i)
+	{
+		retval = ReadKey((E_SAVEKEYS)i, m_asSaveKeys[i].m_aValue);
+		if (retval != OK)
+		{
+			m_pMainLogic->m_Log.LogErr("Loading save file");
+			return ERROR;
+		}
+
+		strncpy(m_asSaveKeys[i].m_aValue, m_asSaveKeys[i].m_aValue, ARRAYSIZE(m_asSaveKeys[0].m_aValue));
+	}
+
+	return OK;
+}
+
 int CSaveFile::CreateSaveFile()
 {
 	FILE* pFile = 0;
@@ -54,12 +73,12 @@ int CSaveFile::CreateSaveFile()
 	}
 
 	// write default values
-	for (int i = 0; i < ARRAYSIZE(m_asSaveKeyDefaults); ++i)
+	for (int i = 0; i < ARRAYSIZE(m_asSaveKeysDefault); ++i)
 	{
-		retval = WriteKey(m_asSaveKeyDefaults[i].m_Key, m_asSaveKeyDefaults[i].aDefault);
+		retval = WriteKey(m_asSaveKeysDefault[i].m_Key, m_asSaveKeysDefault[i].m_aValue);
 		if (retval != OK)
 		{
-			m_pMainLogic->m_Log.LogErr("Writing default key %d", m_asSaveKeyDefaults[i].m_Key);
+			m_pMainLogic->m_Log.LogErr("Writing default key %d", m_asSaveKeysDefault[i].m_Key);
 			fclose(pFile);
 			return ERROR;
 		}
@@ -73,7 +92,7 @@ int CSaveFile::WriteKey(E_SAVEKEYS Key, const char* pValue)
 {
 	FILE* pFile = 0;
 	int line = 0;
-	char aLine[AMOUNT_KEYS][CSAVEFILE_LINE_LEN] = { { 0 } };
+	char aLine[AMOUNT_SAVEKEYS][CSAVEFILE_LINE_LEN] = { { 0 } };
 	signed char ch = 0;
 	int chCount = 0;
 	int lineIndex = 0;
@@ -142,11 +161,11 @@ int CSaveFile::WriteKey(E_SAVEKEYS Key, const char* pValue)
 	return OK;
 }
 
-int CSaveFile::ReadKey(E_SAVEKEYS Key, char* pKey)
+int CSaveFile::ReadKey(E_SAVEKEYS Key, char* pValue)
 {
 	FILE* pFile = 0;
 	int line = 0;
-	char aLine[AMOUNT_KEYS][CSAVEFILE_LINE_LEN] = { 0 };
+	char aLine[AMOUNT_SAVEKEYS][CSAVEFILE_LINE_LEN] = { 0 };
 	signed char ch = 0;
 	int chCount = 0;
 	int lineIndex = 0;
@@ -185,8 +204,8 @@ int CSaveFile::ReadKey(E_SAVEKEYS Key, char* pKey)
 		{
 			if (lineIndex == Key)
 			{
-				memset(pKey, 0, CSAVEFILE_LINE_LEN);
-				CCore::StringCopyIgnore(pKey, aLine[lineIndex], CSAVEFILE_LINE_LEN, "\n");
+				memset(pValue, 0, CSAVEFILE_LINE_LEN);
+				CCore::StringCopyIgnore(pValue, aLine[lineIndex], CSAVEFILE_LINE_LEN, "\n");
 				fclose(pFile);
 				return OK;
 			}

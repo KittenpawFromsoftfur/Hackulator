@@ -26,6 +26,7 @@
 #define CMAINLOGIC_CONSOLE_TOKENS (CMAINLOGIC_CONSOLE_BUFFERLEN / 2)
 #define CMAINLOGIC_CONSOLE_TOKEN_SIZE (64 + CMAINLOGIC_NUMPREFIXES_LENGTH)
 #define CMAINLOGIC_CONSOLE_NUMBER_PREFIX_LENGTH 2
+#define CMAINLOGIC_CONSOLE_USERANSWER_BUFFERLEN 12
 
 // number names
 #define CMAINLOGIC_NUMNAME_BINARY		"binary"
@@ -125,6 +126,13 @@ private:
 		AMOUNT_OPERATORS,
 	};
 
+	enum E_USERANSWERS
+	{
+		ANS_INVALID,
+		ANS_YES,
+		ANS_NO,
+	};
+
 	// structs
 	typedef struct
 	{
@@ -149,7 +157,7 @@ private:
 		E_NUMTYPES m_NumType;
 		char m_aPrefix[CMAINLOGIC_NUMPREFIXES_LENGTH];
 		char m_aName[CMAINLOGIC_NUMNAMES_LENGTH];
-		int m_Radix;// TODO constructor, initialize all those new stuffs
+		int m_Radix;
 	}S_NUMBER;
 
 	typedef struct
@@ -162,20 +170,20 @@ private:
 
 	int ParseInput(const char* pInput, size_t LenInput, char* paaToken, size_t AmountTokens, size_t SizeToken);
 	int EvaluateTokens(char aaToken[CMAINLOGIC_CONSOLE_TOKENS][CMAINLOGIC_CONSOLE_TOKEN_SIZE]);
-	int ExtractNumberFromToken(const char *paToken, U64 *pNumber);// TODO nötig?
+	int ExtractNumberFromToken(const char *paToken, U64 *pNumber);
 	int ExecuteCommand(E_COMMANDS ID, char aaToken[CMAINLOGIC_CONSOLE_TOKENS][CMAINLOGIC_CONSOLE_TOKEN_SIZE]);
-	int CheckSyntax(S_TOKEN* pasToken, size_t AmountEntries);
-	U64 Calculate(S_TOKEN* pasToken, size_t AmountEntries);
+	int CheckSyntax(S_TOKEN* pasToken, size_t AmountTokens);
+	U64 Calculate(S_TOKEN* pasToken, size_t AmountTokens);
 	void PrintResult(U64 Result);
 	U64 ModifyNumberByOperator(U64 Number, E_OPTYPES OpType);
-	int GetOperatorFlags(E_OPTYPES OpType, int SigFlags);// TODO unify?
-	int GetFlags(int Value, int Flags);
+	int GetOperatorFlags(E_OPTYPES OpType, int SigFlags);
+	S_OPERATOR* GetOperatorFromType(E_OPTYPES OpType);
 	S_OPERATOR* GetOperatorFromToken(const char *paToken);
 	S_NUMBER* GetNumberFromType(E_NUMTYPES NumType);
 	S_NUMBER* GetNumberFromPrefix(const char *pPrefix);
-	int GetRadixFromNumType(E_NUMTYPES NumType);
 	bool CheckStringFormat(const char* pNumber, E_NUMTYPES NumType);
 	int NumToString(U64 Number, E_NUMTYPES NumType, char* pResult, size_t LenResult);
+	E_USERANSWERS GetUserAnswer(const char *pQuestion, ...);
 	int ComHelp(E_COMMANDS ID);
 	int ComSetinputformat(const char * pType);
 	int ComSetnumberprefix(const char * pType, const char *pPrefix);
@@ -208,21 +216,21 @@ private:
 	};
 	S_OPERATOR m_asOperators[AMOUNT_OPERATORS] =
 	{
-		{ OPT_INVALID,		"", "invalid",							0 },
-		{ OPT_ADD,			"", CMAINLOGIC_OPNAME_ADD,				OPFLAG_COMBINE | OPFLAG_MODIFYNUM },
-		{ OPT_SUBTRACT,		"", CMAINLOGIC_OPNAME_SUBTRACT,			OPFLAG_COMBINE | OPFLAG_MODIFYNUM },
-		{ OPT_MULTIPLY,		"", CMAINLOGIC_OPNAME_MULTIPLY,			OPFLAG_COMBINE | OPFLAG_MODIFYNUM },
-		{ OPT_DIVIDE,		"", CMAINLOGIC_OPNAME_DIVIDE,			OPFLAG_COMBINE | OPFLAG_MODIFYNUM },
-		{ OPT_EXPONENTIAL,	"", CMAINLOGIC_OPNAME_EXPONENTIAL,		OPFLAG_COMBINE | OPFLAG_MODIFYNUM },
-		{ OPT_MODULO,		"", CMAINLOGIC_OPNAME_MODULO,			OPFLAG_COMBINE | OPFLAG_MODIFYNUM },
-		{ OPT_AND,			"", CMAINLOGIC_OPNAME_AND,				OPFLAG_COMBINE | OPFLAG_LOGICAL },
-		{ OPT_OR,			"", CMAINLOGIC_OPNAME_OR,				OPFLAG_COMBINE | OPFLAG_LOGICAL },
-		{ OPT_XOR,			"", CMAINLOGIC_OPNAME_XOR,				OPFLAG_COMBINE | OPFLAG_LOGICAL },
-		{ OPT_INVERT,		"", CMAINLOGIC_OPNAME_INVERT,			OPFLAG_MODIFYNUM },
-		{ OPT_REVERT,		"", CMAINLOGIC_OPNAME_REVERT,			OPFLAG_MODIFYNUM },
-		{ OPT_LSHIFT,		"", CMAINLOGIC_OPNAME_LSHIFT,			OPFLAG_COMBINE | OPFLAG_MODIFYNUM },
-		{ OPT_RSHIFT,		"", CMAINLOGIC_OPNAME_RSHIFT,			OPFLAG_COMBINE | OPFLAG_MODIFYNUM },
-		{ OPT_BRACKET_OPEN,	"", CMAINLOGIC_OPNAME_BRACKET_OPEN,		0 },
+		{ OPT_INVALID,			"", "invalid",							0 },
+		{ OPT_ADD,				"", CMAINLOGIC_OPNAME_ADD,				OPFLAG_COMBINE | OPFLAG_MODIFYNUM },
+		{ OPT_SUBTRACT,			"", CMAINLOGIC_OPNAME_SUBTRACT,			OPFLAG_COMBINE | OPFLAG_MODIFYNUM },
+		{ OPT_MULTIPLY,			"", CMAINLOGIC_OPNAME_MULTIPLY,			OPFLAG_COMBINE | OPFLAG_MODIFYNUM },
+		{ OPT_DIVIDE,			"", CMAINLOGIC_OPNAME_DIVIDE,			OPFLAG_COMBINE | OPFLAG_MODIFYNUM },
+		{ OPT_EXPONENTIAL,		"", CMAINLOGIC_OPNAME_EXPONENTIAL,		OPFLAG_COMBINE | OPFLAG_MODIFYNUM },
+		{ OPT_MODULO,			"", CMAINLOGIC_OPNAME_MODULO,			OPFLAG_COMBINE | OPFLAG_MODIFYNUM },
+		{ OPT_AND,				"", CMAINLOGIC_OPNAME_AND,				OPFLAG_COMBINE | OPFLAG_LOGICAL },
+		{ OPT_OR,				"", CMAINLOGIC_OPNAME_OR,				OPFLAG_COMBINE | OPFLAG_LOGICAL },
+		{ OPT_XOR,				"", CMAINLOGIC_OPNAME_XOR,				OPFLAG_COMBINE | OPFLAG_LOGICAL },
+		{ OPT_INVERT,			"", CMAINLOGIC_OPNAME_INVERT,			OPFLAG_MODIFYNUM },
+		{ OPT_REVERT,			"", CMAINLOGIC_OPNAME_REVERT,			OPFLAG_MODIFYNUM },
+		{ OPT_LSHIFT,			"", CMAINLOGIC_OPNAME_LSHIFT,			OPFLAG_COMBINE | OPFLAG_MODIFYNUM },
+		{ OPT_RSHIFT,			"", CMAINLOGIC_OPNAME_RSHIFT,			OPFLAG_COMBINE | OPFLAG_MODIFYNUM },
+		{ OPT_BRACKET_OPEN,		"", CMAINLOGIC_OPNAME_BRACKET_OPEN,		0 },
 		{ OPT_BRACKET_CLOSE,	"", CMAINLOGIC_OPNAME_BRACKET_CLOSE,	0 },
 	};
 };

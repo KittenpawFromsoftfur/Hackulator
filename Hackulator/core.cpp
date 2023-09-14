@@ -198,6 +198,11 @@ U64 CCore::PowULL(U64 Base, int Exponent)
 	return value;
 }
 
+int GetFlags(int Value, int Flags)
+{
+	return (Value | Flags);
+}
+
 void CCore::Exit(int ExitCode)
 {
 	system("pause");

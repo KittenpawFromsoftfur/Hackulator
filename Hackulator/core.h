@@ -9,6 +9,7 @@
 // exit codes
 #define EXITCODE_OK 0
 #define EXITCODE_ERR_SAVEFILE -1
+#define EXITCODE_ERR_MAINLOGIC -2
 
 // function defines
 #define ARRAYSIZE(a) (sizeof(a) / sizeof(a[0]))
@@ -31,5 +32,6 @@ public:
     static bool CharContains(char Char, const char* pCharacters);
     static bool CheckFileExists(const char* pFilePath);
     static U64 PowULL(U64 Base, int Exponent);
+    static int GetFlags(int Value, int Flags);
     static void Exit(int ExitCode);
 };

@@ -30,6 +30,30 @@ void CLog::LogErr(const char* pMessage, ...)
 	va_end(argptr);
 }
 
+void CLog::LogCustom(E_CUSTOMFLAGS Flags, const char* pMessage, ...)
+{
+	char aBuf[CLOG_LOG_MAXLEN] = { 0 };
+	char aPrefix[CLOG_LOG_MAXLEN] = { 0 };
+
+	vsprintf(aBuf, pMessage, Argptr);
+	printf("%s%s", aPrefix, aBuf);
+
+	if (!CCore::GetFlags(Flags, CFL_NONEWLINE))
+		printf("\n");
+}
+
+void CLog::LogCustom(E_CUSTOMFLAGS Flags, const char* pMessage, va_list Argptr)
+{
+	char aBuf[CLOG_LOG_MAXLEN] = { 0 };
+	char aPrefix[CLOG_LOG_MAXLEN] = { 0 };
+
+	vsprintf(aBuf, pMessage, Argptr);
+	printf("%s%s", aPrefix, aBuf);
+
+	if (!CCore::GetFlags(Flags, CFL_NONEWLINE))
+		printf("\n");
+}
+
 void CLog::LogBase(E_LOGTYPES Type, const char* pMessage, va_list Argptr)
 {
 	char aBuf[CLOG_LOG_MAXLEN] = { 0 };
@@ -47,5 +71,5 @@ void CLog::LogBase(E_LOGTYPES Type, const char* pMessage, va_list Argptr)
 	}
 
 	vsprintf(aBuf, pMessage, Argptr);
-	printf("%s%s\n", aPrefix, aBuf);
+	printf("%s%s", aPrefix, aBuf);
 }

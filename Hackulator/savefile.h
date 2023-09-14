@@ -59,26 +59,54 @@ public:
         SK_OPPREFIX_BRACKET_CLOSE,
         SK_RESULTORDER,
         SK_STARTFULLSCREEN,
-        AMOUNT_KEYS,
+        AMOUNT_SAVEKEYS,
         // ######################################################
     };
 
     typedef struct
     {
         E_SAVEKEYS m_Key;
-        char aDefault[CSAVEFILE_LINE_LEN];
-    }S_SAVEKEYDEFAULT;
+        char m_aValue[CSAVEFILE_LINE_LEN];
+    }S_SAVEKEY;
 
     CSaveFile(CMainLogic *pMainLogic, char *pSaveFilePath);
     ~CSaveFile();
-    int CreateSaveFile();
-    int WriteKey(E_SAVEKEYS Key, const char* pValue);
-    int ReadKey(E_SAVEKEYS Key, char *pKey);
+    int Load();
+
+    S_SAVEKEY m_asSaveKeys[AMOUNT_SAVEKEYS] =
+    {
+        { SK_NUMPREFIX_BINARY,          "" },
+        { SK_NUMPREFIX_DUAL,            "" },
+        { SK_NUMPREFIX_OCTAL,           "" },
+        { SK_NUMPREFIX_DECIMAL,         "" },
+        { SK_NUMPREFIX_HEXADECIMAL,     "" },
+        { SK_OPPREFIX_ADD,              "" },
+        { SK_OPPREFIX_SUBTRACT,         "" },
+        { SK_OPPREFIX_MULTIPLY,         "" },
+        { SK_OPPREFIX_DIVIDE,           "" },
+        { SK_OPPREFIX_EXPONENTIAL,      "" },
+        { SK_OPPREFIX_MODULO,           "" },
+        { SK_OPPREFIX_AND,              "" },
+        { SK_OPPREFIX_OR,               "" },
+        { SK_OPPREFIX_XOR,              "" },
+        { SK_OPPREFIX_INVERT,           "" },
+        { SK_OPPREFIX_REVERT,           "" },
+        { SK_OPPREFIX_LSHIFT,           "" },
+        { SK_OPPREFIX_RSHIFT,           "" },
+        { SK_OPPREFIX_BRACKET_OPEN,     "" },
+        { SK_OPPREFIX_BRACKET_CLOSE,    "" },
+        { SK_RESULTORDER,               "" },
+        { SK_STARTFULLSCREEN,           "" },
+    };
 
 private:
+    int CreateSaveFile();
+    int WriteKey(E_SAVEKEYS Key, const char* pValue);
+    int ReadKey(E_SAVEKEYS Key, char* pValue);
+
     CMainLogic *m_pMainLogic;
     char m_aSaveFilePath[MAX_LEN_FILEPATHS];
-    S_SAVEKEYDEFAULT m_asSaveKeyDefaults[AMOUNT_KEYS] =
+    S_SAVEKEY m_asSaveKeysDefault[AMOUNT_SAVEKEYS] =
     {
         { SK_NUMPREFIX_BINARY,          "0" CSAVEFILE_NUMSHORTNAME_BINARY },
         { SK_NUMPREFIX_DUAL,            "0" CSAVEFILE_NUMSHORTNAME_DUAL },
