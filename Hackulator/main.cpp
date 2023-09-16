@@ -7,7 +7,6 @@
 #include "mainlogic.h"
 
 /* TODO
-	Function with y/n
 	custom prefixes and symbols
 	tabulator, space as allowed whitespaces
 	aaToken[][] --> *

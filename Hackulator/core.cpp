@@ -16,16 +16,16 @@ CCore::~CCore()
 
 }
 
-int CCore::StringCompareNocase(const char* pSource, const char* pDest, size_t Len)
+int CCore::StringCompareNocase(const char* pSource, const char* pCompare, size_t Len)
 {
 	signed char diff = 0;
 
 	for (int i = 0; i < Len; ++i)
 	{
-		if (!pSource[i] && !pDest[i])
+		if (!pSource[i] && !pCompare[i])
 			break;
 
-		diff = tolower(pSource[i]) - tolower(pDest[i]);
+		diff = tolower(pSource[i]) - tolower(pCompare[i]);
 
 		if (diff != 0)
 			return diff;

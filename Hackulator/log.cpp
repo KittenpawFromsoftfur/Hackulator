@@ -1,5 +1,6 @@
 #include <stdarg.h>
 #include <stdio.h>
+#include <string.h>
 
 #include "log.h"
 #include "core.h"
@@ -18,7 +19,7 @@ void CLog::Log(const char* pMessage, ...)
 {
 	va_list argptr;
 	va_start(argptr, pMessage);
-	LogBase(INFO, pMessage, argptr);
+	LogBase("", "\n", pMessage, argptr);
 	va_end(argptr);
 }
 
@@ -26,50 +27,26 @@ void CLog::LogErr(const char* pMessage, ...)
 {
 	va_list argptr;
 	va_start(argptr, pMessage);
-	LogBase(ERR, pMessage, argptr);
+	LogBase("Error: ", "\n", pMessage, argptr);
 	va_end(argptr);
 }
 
-void CLog::LogCustom(E_CUSTOMFLAGS Flags, const char* pMessage, ...)
+void CLog::LogCustom(const char *pPrefix, const char *pSuffix, const char* pMessage, ...)
 {
-	char aBuf[CLOG_LOG_MAXLEN] = { 0 };
-	char aPrefix[CLOG_LOG_MAXLEN] = { 0 };
-
-	vsprintf(aBuf, pMessage, Argptr);
-	printf("%s%s", aPrefix, aBuf);
-
-	if (!CCore::GetFlags(Flags, CFL_NONEWLINE))
-		printf("\n");
+	va_list argptr;
+	va_start(argptr, pMessage);
+	LogBase(pPrefix, pSuffix, pMessage, argptr);
+	va_end(argptr);
 }
 
-void CLog::LogCustom(E_CUSTOMFLAGS Flags, const char* pMessage, va_list Argptr)
+void CLog::LogBase(const char* pPrefix, const char* pSuffix, const char* pMessage, va_list Argptr)
 {
 	char aBuf[CLOG_LOG_MAXLEN] = { 0 };
 	char aPrefix[CLOG_LOG_MAXLEN] = { 0 };
+	char aSuffix[CLOG_LOG_MAXLEN] = { 0 };
 
 	vsprintf(aBuf, pMessage, Argptr);
-	printf("%s%s", aPrefix, aBuf);
-
-	if (!CCore::GetFlags(Flags, CFL_NONEWLINE))
-		printf("\n");
-}
-
-void CLog::LogBase(E_LOGTYPES Type, const char* pMessage, va_list Argptr)
-{
-	char aBuf[CLOG_LOG_MAXLEN] = { 0 };
-	char aPrefix[CLOG_LOG_MAXLEN] = { 0 };
-
-	switch (Type)
-	{
-	case ERR:
-		snprintf(aPrefix, ARRAYSIZE(aPrefix), "Error: ");
-		break;
-
-	case INFO:
-		// no prefix
-		break;
-	}
-
-	vsprintf(aBuf, pMessage, Argptr);
-	printf("%s%s", aPrefix, aBuf);
+	strncpy(aPrefix, pPrefix, ARRAYSIZE(aPrefix));
+	strncpy(aSuffix, pSuffix, ARRAYSIZE(aSuffix));
+	printf("%s%s%s", aPrefix, aBuf, aSuffix);
 }

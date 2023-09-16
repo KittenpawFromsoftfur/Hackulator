@@ -277,8 +277,6 @@ int CMainLogic::ExecuteCommand(E_COMMANDS ID, char aaToken[CMAINLOGIC_CONSOLE_TO
 	{
 	case COM_HELP:
 		ComHelp((E_COMMANDS) - 1);
-
-		GetUserAnswer("hello %s <%s> you stuupeeed", 33, "heyaa");// laststop
 		break;
 
 	case COM_SET_INPUTFORMAT:
@@ -814,20 +812,20 @@ int CMainLogic::NumToString(U64 Number, E_NUMTYPES NumType, char* pResult, size_
 CMainLogic::E_USERANSWERS CMainLogic::GetUserAnswer(const char *pQuestion, ...)
 {
 	va_list argptr;
-	va_start(argptr, pQuestion);
 	int retval = 0;
 	char aInput[CMAINLOGIC_CONSOLE_USERANSWER_BUFFERLEN] = { 0 };
+	char aQuestion[CLOG_LOG_MAXLEN] = { 0 };
 
-	// ask question
-	m_Log.LogCustomArg(CLog::CFL_NONEWLINE, pQuestion, argptr);
+	va_start(argptr, pQuestion);
+	vsprintf(aQuestion, pQuestion, argptr);
 	va_end(argptr);
-	
-	// suffix
-	m_Log.LogCustom(CLog::CFL_NONEWLINE, "? (y/n): ");
 
-	// parse input loop until question is answered
+	// ask question and parse answer loop
 	while (1)
 	{
+		// ask question
+		m_Log.LogCustom("", "? (y/n): ", aQuestion);
+
 		// get user input
 		retval = scanf(" %" STRINGIFY_VALUE(CMAINLOGIC_CONSOLE_BUFFERLEN) "[^\n]", aInput);
 
@@ -836,8 +834,12 @@ CMainLogic::E_USERANSWERS CMainLogic::GetUserAnswer(const char *pQuestion, ...)
 			m_Log.LogErr("Failed to scan input");
 			continue;
 		}
-		
-		m_Log.Log("User answered <%s>", aInput);
+
+		// allow y/n/yes/no as answer
+		if (CCore::StringCompareNocase(aInput, "y", ARRAYSIZE(aInput)) == 0 || CCore::StringCompareNocase(aInput, "yes", ARRAYSIZE(aInput)) == 0)
+			return ANS_YES;
+		else if (CCore::StringCompareNocase(aInput, "n", ARRAYSIZE(aInput)) == 0 || CCore::StringCompareNocase(aInput, "no", ARRAYSIZE(aInput)) == 0)
+			return ANS_NO;
 	}
 
 	return ANS_INVALID;
