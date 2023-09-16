@@ -34,6 +34,14 @@ int CCore::StringCompareNocase(const char* pSource, const char* pCompare, size_t
 	return 0;
 }
 
+bool CCore::StringIsEmpty(const char* pSource)
+{
+	if (strlen(pSource) == 0)
+		return true;
+
+	return false;
+}
+
 void CCore::StringCopyIgnore(char* pDest, const char* pSource, size_t Len, const char* pIgnore)
 {
 	int destIndex = 0;

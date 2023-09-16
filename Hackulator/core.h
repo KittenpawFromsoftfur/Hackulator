@@ -24,6 +24,7 @@ public:
     CCore();
     ~CCore();
     static int StringCompareNocase(const char* pSource, const char* pCompare, size_t Len);
+    static bool StringIsEmpty(const char* pString);
     static void StringCopyIgnore(char* pDest, const char* pSource, size_t Len, const char* pIgnore);
     static void StringRevert(char *pString);
     static void StringFilter(char* pString, const char* pCharacters);

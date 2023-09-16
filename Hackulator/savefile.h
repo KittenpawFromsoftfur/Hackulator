@@ -36,7 +36,7 @@ class CSaveFile
 public:
     enum E_SAVEKEYS
     {
-        // ##### ADD ENUM ONLY DIRECTLY ABOVE 'AMOUNT_KEYS' #####
+        // ##### ADD ENUM ONLY DIRECTLY ABOVE 'AMOUNT_SAVEKEYS' #####
         SK_NUMPREFIX_BINARY,
         SK_NUMPREFIX_DUAL,
         SK_NUMPREFIX_OCTAL,
@@ -59,6 +59,8 @@ public:
         SK_OPPREFIX_BRACKET_CLOSE,
         SK_RESULTORDER,
         SK_STARTFULLSCREEN,
+        SK_AUTOSAVE,
+        SK_INPUTFORMAT,
         AMOUNT_SAVEKEYS,
         // ######################################################
     };
@@ -71,7 +73,9 @@ public:
 
     CSaveFile(CMainLogic *pMainLogic, char *pSaveFilePath);
     ~CSaveFile();
-    int Load();
+    int LoadSaveFile();
+    int SaveSaveFile();
+    int ResetSaveFile();
 
     S_SAVEKEY m_asSaveKeys[AMOUNT_SAVEKEYS] =
     {

@@ -40,7 +40,7 @@ CSaveFile::~CSaveFile()
 
 }
 
-int CSaveFile::Load()
+int CSaveFile::LoadSaveFile()
 {
 	int retval = 0;
 
@@ -49,7 +49,7 @@ int CSaveFile::Load()
 		retval = ReadKey((E_SAVEKEYS)i, m_asSaveKeys[i].m_aValue);
 		if (retval != OK)
 		{
-			m_pMainLogic->m_Log.LogErr("Loading save file");
+			m_pMainLogic->m_Log.LogErr("Loading save file, reading key %d", i);
 			return ERROR;
 		}
 
@@ -57,6 +57,30 @@ int CSaveFile::Load()
 	}
 
 	return OK;
+}
+
+int CSaveFile::SaveSaveFile()
+{
+	int retval = 0;
+
+	for (int i = 0; i < AMOUNT_SAVEKEYS; ++i)
+	{
+		retval = WriteKey((E_SAVEKEYS)i, m_asSaveKeys[i].m_aValue);
+		if (retval != OK)
+		{
+			m_pMainLogic->m_Log.LogErr("Saving save file, writing key %d", i);
+			return ERROR;
+		}
+
+		strncpy(m_asSaveKeys[i].m_aValue, m_asSaveKeys[i].m_aValue, ARRAYSIZE(m_asSaveKeys[0].m_aValue));
+	}
+
+	return OK;
+}
+
+int CSaveFile::ResetSaveFile()
+{
+	return CreateSaveFile();
 }
 
 int CSaveFile::CreateSaveFile()

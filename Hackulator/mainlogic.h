@@ -8,8 +8,10 @@
 #define CMAINLOGIC_MAX_LEN_COMHELP_BUFFERS 256
 #define CMAINLOGIC_COMHELP_HEADER_HELP					"<<<<<<<<<<<<<<<<<<<<<<<<< HELP >>>>>>>>>>>>>>>>>>>>>>>>>"
 #define CMAINLOGIC_COMHELP_HEADER_COMMANDS				"<<<<<<<<<<<<<<<<<<<<<<< COMMANDS >>>>>>>>>>>>>>>>>>>>>>>"
-#define CMAINLOGIC_COMHELP_HEADER_NUMPREFIXES			"<<<<<<<<<<<<<<<<<<< NUMBER PREFIXES >>>>>>>>>>>>>>>>>>>>"
-#define CMAINLOGIC_COMHELP_HEADER_OPERATORS				"<<<<<<<<<<<<<<<<<<<<<< OPERATORS >>>>>>>>>>>>>>>>>>>>>>>"
+#define CMAINLOGIC_COMHELP_HEADER_NUMPREFIXES_TEXT		"NUMBER PREFIXES"
+#define CMAINLOGIC_COMHELP_HEADER_NUMPREFIXES			"<<<<<<<<<<<<<<<<<<< " CMAINLOGIC_COMHELP_HEADER_NUMPREFIXES_TEXT " >>>>>>>>>>>>>>>>>>>>"
+#define CMAINLOGIC_COMHELP_HEADER_OPERATORS_TEXT		"OPERATORS"
+#define CMAINLOGIC_COMHELP_HEADER_OPERATORS				"<<<<<<<<<<<<<<<<<<<<<< " CMAINLOGIC_COMHELP_HEADER_OPERATORS_TEXT " >>>>>>>>>>>>>>>>>>>>>>>"
 #define CMAINLOGIC_COMHELP_HEADER_NUMSHORTNAMES_TEXT	"NUMBER FORMAT SHORT NAMES"
 #define CMAINLOGIC_COMHELP_HEADER_NUMSHORTNAMES			"<<<<<<<<<<<<<< " CMAINLOGIC_COMHELP_HEADER_NUMSHORTNAMES_TEXT " >>>>>>>>>>>>>>>"
 #define CMAINLOGIC_COMHELP_TAILER						"<<<<<<<<<<<<<<<<<<<<<<<<<<<<>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
@@ -20,6 +22,7 @@
 #define CMAINLOGIC_NUMNAMES_LENGTH 32
 #define CMAINLOGIC_OPERATORS_LENGTH CMAINLOGIC_NUMPREFIXES_LENGTH
 #define CMAINLOGIC_OPNAMES_LENGTH CMAINLOGIC_NUMNAMES_LENGTH
+#define CMAINLOGIC_RESULTORDER_LEN 12
 
 // input and tokenization
 #define CMAINLOGIC_CONSOLE_BUFFERLEN 256
@@ -81,7 +84,7 @@ private:
 		COM_SET_RESULTORDER,
 		COM_SET_AUTOSAVE,
 		COM_SAVE,
-		COM_RESET,
+		COM_RESETSETTINGS,
 		COM_CLEARSCREEN,
 		COM_EXIT,
 		AMOUNT_COMMANDS,
@@ -95,7 +98,7 @@ private:
 
 	enum E_NUMTYPES
 	{
-		NUT_INVALID,
+		NUT_INVALID,// ATTENTION! Invalid must be at first position
 		NUT_BINARY,
 		NUT_DUAL,
 		NUT_OCTAL,
@@ -107,7 +110,7 @@ private:
 
 	enum E_OPTYPES
 	{
-		OPT_INVALID,
+		OPT_INVALID,// ATTENTION! Invalid must be at first position
 		OPT_ADD,
 		OPT_SUBTRACT,
 		OPT_MULTIPLY,
@@ -131,6 +134,14 @@ private:
 		ANS_INVALID,
 		ANS_YES,
 		ANS_NO,
+	};
+
+	enum E_COMRETVALS
+	{
+		CRV_OK,
+		CRV_ERROR,
+		CRV_INVALIDPARAMS,
+		CRV_CANCELLED,
 	};
 
 	// structs
@@ -177,33 +188,47 @@ private:
 	void PrintResult(U64 Result);
 	U64 ModifyNumberByOperator(U64 Number, E_OPTYPES OpType);
 	int GetOperatorFlags(E_OPTYPES OpType, int SigFlags);
+	bool CheckNumberPrefixCollisions(const char* pPrefix, S_NUMBER** ppsNumberColliding);
+	bool CheckOperatorCollisions(const char* pPrefix, S_OPERATOR** ppsOperatorColliding);
 	S_OPERATOR* GetOperatorFromType(E_OPTYPES OpType);
+	S_OPERATOR* GetOperatorFromType(const char *pType);
 	S_OPERATOR* GetOperatorFromToken(const char *paToken);
 	S_NUMBER* GetNumberFromType(E_NUMTYPES NumType);
+	S_NUMBER* GetNumberFromType(const char *pType);
 	S_NUMBER* GetNumberFromPrefix(const char *pPrefix);
 	bool CheckStringFormat(const char* pNumber, E_NUMTYPES NumType);
 	int NumToString(U64 Number, E_NUMTYPES NumType, char* pResult, size_t LenResult);
 	E_USERANSWERS GetUserAnswer(const char *pQuestion, ...);
-	int ComHelp(E_COMMANDS ID);
-	int ComSetinputformat(const char * pType);
-	int ComSetnumberprefix(const char * pType, const char *pPrefix);
-	int ComClearscreen();
+	int LoadSaveData();
+	int SaveSaveData();
+	E_COMRETVALS ComHelp(E_COMMANDS ID);
+	E_COMRETVALS ComSetinputformat(const char * pType);
+	E_COMRETVALS ComSetnumberprefix(const char * pType, const char *pNewPrefix);
+	E_COMRETVALS ComSetoperator(const char * pOperator, const char *pNewOperator);
+	E_COMRETVALS ComSetresultorder(const char * pOrder);
+	E_COMRETVALS ComSetautosave(const char * pOption);
+	E_COMRETVALS ComSave(const char * pOption);
+	E_COMRETVALS ComResetSettings(const char * pOption);
+	E_COMRETVALS ComClearscreen();
+	E_COMRETVALS ComExit();
 
 	bool m_StartFullscreen;
 	bool m_ExitApplication;
-	E_NUMTYPES m_DefaultInputFormat;
+	E_NUMTYPES m_DefaultNumberType;
+	bool m_AutoSave;
+	char m_aResultOrder[CMAINLOGIC_RESULTORDER_LEN];
 	S_COMMAND m_asCommands[AMOUNT_COMMANDS] = 
 	{
-		{ COM_HELP,				"help",				"Lists this help",													"",																																																	"" },
-		{ COM_SET_INPUTFORMAT,	"set_inputformat",	"Sets the default input number format (when no prefix is given)",	"<" CMAINLOGIC_NUMNAME_BINARY "/" CMAINLOGIC_NUMNAME_DUAL "/" CMAINLOGIC_NUMNAME_OCTAL "/" CMAINLOGIC_NUMNAME_DECIMAL "/" CMAINLOGIC_NUMNAME_HEXADECIMAL ">",										CMAINLOGIC_NUMNAME_HEXADECIMAL },
-		{ COM_SET_NUMBERPREFIX,	"set_numberprefix", "Changes the prefix for a number format",							"<" CMAINLOGIC_NUMNAME_BINARY "/" CMAINLOGIC_NUMNAME_DUAL "/" CMAINLOGIC_NUMNAME_OCTAL "/" CMAINLOGIC_NUMNAME_DECIMAL "/" CMAINLOGIC_NUMNAME_HEXADECIMAL "> <prefix>",								CMAINLOGIC_NUMNAME_OCTAL " 0w" },
-		{ COM_SET_OPERATOR,		"set_operator",		"Changes an operator to your preferred string",						"<" CMAINLOGIC_NUMNAME_BINARY "/" CMAINLOGIC_NUMNAME_DUAL "/" CMAINLOGIC_NUMNAME_OCTAL "/" CMAINLOGIC_NUMNAME_DECIMAL "/" CMAINLOGIC_NUMNAME_HEXADECIMAL "> <prefix>",								CMAINLOGIC_NUMNAME_OCTAL " 0w" },
-		{ COM_SET_RESULTORDER,	"set_resultorder",	"Sets the order of results (not listed = not visible)",				"<One or more \"" CMAINLOGIC_COMHELP_HEADER_NUMSHORTNAMES_TEXT "\" (see below) concatenated without separators>",																					CSAVEFILE_NUMSHORTNAME_DECIMAL CSAVEFILE_NUMSHORTNAME_HEXADECIMAL CSAVEFILE_NUMSHORTNAME_BINARY },
-		{ COM_SET_AUTOSAVE,		"set_autosave",		"Enables or disables auto saving of settings",						"<1/0>",																																															"0" },
-		{ COM_SAVE,				"save",				"Saves the current settings",										"",																																																	"" },
-		{ COM_RESET,			"reset_settings",	"Resets the settings to their defaults",							"",																																																	"" },
-		{ COM_CLEARSCREEN,		"clear",			"Clears the screen",												"",																																																	"" },
-		{ COM_EXIT,				"exit",				"Exits the program",												"",																																																	"" },
+		{ COM_HELP,				"help",				"Lists this help",													"",																											"" },
+		{ COM_SET_INPUTFORMAT,	"set_inputformat",	"Sets the default input number format (when no prefix is given)",	"<Number format label (see below \"" CMAINLOGIC_COMHELP_HEADER_NUMPREFIXES_TEXT "\")>",						CMAINLOGIC_NUMNAME_HEXADECIMAL },
+		{ COM_SET_NUMBERPREFIX,	"set_numberprefix", "Changes the prefix of a number format to your preferred string",	"<Number format label (see below \"" CMAINLOGIC_COMHELP_HEADER_NUMPREFIXES_TEXT "\")> <string>",			CMAINLOGIC_NUMNAME_OCTAL " 0w" },
+		{ COM_SET_OPERATOR,		"set_operator",		"Changes an operator to your preferred string",						"<Operator label (see below \"" CMAINLOGIC_COMHELP_HEADER_OPERATORS_TEXT "\"> <string>",					CMAINLOGIC_OPNAME_EXPONENTIAL " ^" },
+		{ COM_SET_RESULTORDER,	"set_resultorder",	"Sets the order of results (not listed = not visible)",				"<One or more number format short name (see below \"" CMAINLOGIC_COMHELP_HEADER_NUMSHORTNAMES_TEXT "\")>",	CSAVEFILE_NUMSHORTNAME_DECIMAL CSAVEFILE_NUMSHORTNAME_HEXADECIMAL CSAVEFILE_NUMSHORTNAME_BINARY },
+		{ COM_SET_AUTOSAVE,		"set_autosave",		"Enables or disables auto saving of settings",						"<1/0>",																									"0" },
+		{ COM_SAVE,				"save",				"Saves the current settings",										"",																											"" },
+		{ COM_RESETSETTINGS,	"reset_settings",	"Resets the settings to their defaults",							"",																											"" },
+		{ COM_CLEARSCREEN,		"clear",			"Clears the screen",												"",																											"" },
+		{ COM_EXIT,				"exit",				"Exits the program",												"",																											"" },
 	};
 	S_NUMBER m_asNumbers[AMOUNT_NUMBERTYPES] =
 	{

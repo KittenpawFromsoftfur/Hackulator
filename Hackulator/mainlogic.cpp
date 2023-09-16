@@ -13,42 +13,20 @@ CMainLogic::CMainLogic(bool StartFullscreen, char *pSaveFilePath) : m_SaveFile(t
 {
 	int retval = 0;
 
+	// default initialize members
 	m_ExitApplication = false;
-	m_DefaultInputFormat = NUT_DECIMAL;
+	m_DefaultNumberType = NUT_DECIMAL;
+	m_AutoSave = false;
+	memset(m_aResultOrder, 0, ARRAYSIZE(m_aResultOrder));
 
 	m_StartFullscreen = StartFullscreen;
 	if (m_StartFullscreen)
 		ShowWindow(GetConsoleWindow(), SW_MAXIMIZE);
 
-	// load save file
-	retval = m_SaveFile.Load();
+	// load save data (overwrites some members)
+	retval = LoadSaveData();
 	if (retval != OK)
 		CCore::Exit(EXITCODE_ERR_MAINLOGIC);
-
-	// apply loaded data
-	// number prefixes
-	strncpy(m_asNumbers[NUT_BINARY].m_aPrefix, m_SaveFile.m_asSaveKeys[CSaveFile::SK_NUMPREFIX_BINARY].m_aValue, ARRAYSIZE(m_asNumbers[0].m_aPrefix));
-	strncpy(m_asNumbers[NUT_DUAL].m_aPrefix, m_SaveFile.m_asSaveKeys[CSaveFile::SK_NUMPREFIX_DUAL].m_aValue, ARRAYSIZE(m_asNumbers[0].m_aPrefix));
-	strncpy(m_asNumbers[NUT_OCTAL].m_aPrefix, m_SaveFile.m_asSaveKeys[CSaveFile::SK_NUMPREFIX_OCTAL].m_aValue, ARRAYSIZE(m_asNumbers[0].m_aPrefix));
-	strncpy(m_asNumbers[NUT_DECIMAL].m_aPrefix, m_SaveFile.m_asSaveKeys[CSaveFile::SK_NUMPREFIX_DECIMAL].m_aValue, ARRAYSIZE(m_asNumbers[0].m_aPrefix));
-	strncpy(m_asNumbers[NUT_HEXADECIMAL].m_aPrefix, m_SaveFile.m_asSaveKeys[CSaveFile::SK_NUMPREFIX_HEXADECIMAL].m_aValue, ARRAYSIZE(m_asNumbers[0].m_aPrefix));
-
-	// operator prefixes
-	strncpy(m_asOperators[OPT_ADD].m_aOperator, m_SaveFile.m_asSaveKeys[CSaveFile::SK_OPPREFIX_ADD].m_aValue, ARRAYSIZE(m_asNumbers[0].m_aPrefix));
-	strncpy(m_asOperators[OPT_SUBTRACT].m_aOperator, m_SaveFile.m_asSaveKeys[CSaveFile::SK_OPPREFIX_SUBTRACT].m_aValue, ARRAYSIZE(m_asNumbers[0].m_aPrefix));
-	strncpy(m_asOperators[OPT_MULTIPLY].m_aOperator, m_SaveFile.m_asSaveKeys[CSaveFile::SK_OPPREFIX_MULTIPLY].m_aValue, ARRAYSIZE(m_asNumbers[0].m_aPrefix));
-	strncpy(m_asOperators[OPT_DIVIDE].m_aOperator, m_SaveFile.m_asSaveKeys[CSaveFile::SK_OPPREFIX_DIVIDE].m_aValue, ARRAYSIZE(m_asNumbers[0].m_aPrefix));
-	strncpy(m_asOperators[OPT_EXPONENTIAL].m_aOperator, m_SaveFile.m_asSaveKeys[CSaveFile::SK_OPPREFIX_EXPONENTIAL].m_aValue, ARRAYSIZE(m_asNumbers[0].m_aPrefix));
-	strncpy(m_asOperators[OPT_MODULO].m_aOperator, m_SaveFile.m_asSaveKeys[CSaveFile::SK_OPPREFIX_MODULO].m_aValue, ARRAYSIZE(m_asNumbers[0].m_aPrefix));
-	strncpy(m_asOperators[OPT_AND].m_aOperator, m_SaveFile.m_asSaveKeys[CSaveFile::SK_OPPREFIX_AND].m_aValue, ARRAYSIZE(m_asNumbers[0].m_aPrefix));
-	strncpy(m_asOperators[OPT_OR].m_aOperator, m_SaveFile.m_asSaveKeys[CSaveFile::SK_OPPREFIX_OR].m_aValue, ARRAYSIZE(m_asNumbers[0].m_aPrefix));
-	strncpy(m_asOperators[OPT_XOR].m_aOperator, m_SaveFile.m_asSaveKeys[CSaveFile::SK_OPPREFIX_XOR].m_aValue, ARRAYSIZE(m_asNumbers[0].m_aPrefix));
-	strncpy(m_asOperators[OPT_INVERT].m_aOperator, m_SaveFile.m_asSaveKeys[CSaveFile::SK_OPPREFIX_INVERT].m_aValue, ARRAYSIZE(m_asNumbers[0].m_aPrefix));
-	strncpy(m_asOperators[OPT_REVERT].m_aOperator, m_SaveFile.m_asSaveKeys[CSaveFile::SK_OPPREFIX_REVERT].m_aValue, ARRAYSIZE(m_asNumbers[0].m_aPrefix));
-	strncpy(m_asOperators[OPT_LSHIFT].m_aOperator, m_SaveFile.m_asSaveKeys[CSaveFile::SK_OPPREFIX_LSHIFT].m_aValue, ARRAYSIZE(m_asNumbers[0].m_aPrefix));
-	strncpy(m_asOperators[OPT_RSHIFT].m_aOperator, m_SaveFile.m_asSaveKeys[CSaveFile::SK_OPPREFIX_RSHIFT].m_aValue, ARRAYSIZE(m_asNumbers[0].m_aPrefix));
-	strncpy(m_asOperators[OPT_BRACKET_OPEN].m_aOperator, m_SaveFile.m_asSaveKeys[CSaveFile::SK_OPPREFIX_BRACKET_OPEN].m_aValue, ARRAYSIZE(m_asNumbers[0].m_aPrefix));
-	strncpy(m_asOperators[OPT_BRACKET_CLOSE].m_aOperator, m_SaveFile.m_asSaveKeys[CSaveFile::SK_OPPREFIX_BRACKET_CLOSE].m_aValue, ARRAYSIZE(m_asNumbers[0].m_aPrefix));
 }
 
 CMainLogic::~CMainLogic()
@@ -128,7 +106,7 @@ int CMainLogic::ParseInput(const char* pInput, size_t LenInput, char *paaToken, 
 
 		for (int opInd = 0; opInd < ARRAYSIZE(m_asOperators); ++opInd)
 		{
-			if (CCore::CharContains(pInput[i], m_asOperators[i].m_aOperator))
+			if (CCore::CharContains(pInput[i], m_asOperators[opInd].m_aOperator))
 			{
 				charIsOperator = true;
 				break;
@@ -242,7 +220,7 @@ int CMainLogic::EvaluateTokens(char aaToken[CMAINLOGIC_CONSOLE_TOKENS][CMAINLOGI
 		// check token validity and fill rest of token data
 		if (asToken[i].m_TokType == (E_TOKTYPES)-1)
 		{
-			m_Log.LogErr("%d. token '%s' is an invalid token (expected %s number format)", i + 1, aaToken[i], GetNumberFromType(m_DefaultInputFormat)->m_aName);
+			m_Log.LogErr("%d. token '%s' is an invalid token (expected %s number format)", i + 1, aaToken[i], GetNumberFromType(m_DefaultNumberType)->m_aName);
 			return ERROR;
 		}
 
@@ -272,35 +250,93 @@ int CMainLogic::EvaluateTokens(char aaToken[CMAINLOGIC_CONSOLE_TOKENS][CMAINLOGI
 int CMainLogic::ExecuteCommand(E_COMMANDS ID, char aaToken[CMAINLOGIC_CONSOLE_TOKENS][CMAINLOGIC_CONSOLE_TOKEN_SIZE])
 {
 	int retval = 0;
+	E_COMRETVALS retvalCom = CRV_OK;
+	bool printHelpOnError = true;
+	bool doAutoSave = false;
+	bool forceAutoSave = false;
 
 	switch (ID)
 	{
 	case COM_HELP:
-		ComHelp((E_COMMANDS) - 1);
+		retvalCom = ComHelp((E_COMMANDS) - 1);
 		break;
 
 	case COM_SET_INPUTFORMAT:
-		retval = ComSetinputformat(aaToken[1]);
+		retvalCom = ComSetinputformat(aaToken[1]);
+		doAutoSave = true;
 		break;
 
 	case COM_SET_NUMBERPREFIX:
-		retval = ComSetnumberprefix(aaToken[1], aaToken[2]);
+		retvalCom = ComSetnumberprefix(aaToken[1], aaToken[2]);
+		doAutoSave = true;
+		break;
+
+	case COM_SET_OPERATOR:
+		retvalCom = ComSetoperator(aaToken[1], aaToken[2]);
+		doAutoSave = true;
+		break;
+
+	case COM_SET_RESULTORDER:
+		retvalCom = ComSetresultorder(aaToken[1]);
+		doAutoSave = true;
+		break;
+
+	case COM_SET_AUTOSAVE:
+		retvalCom = ComSetautosave(aaToken[1]);
+		doAutoSave = true;
+		forceAutoSave = true;// because if you disable it, that would not be saved
+		break;
+
+	case COM_SAVE:
+		retvalCom = ComSave(aaToken[1]);
+		break;
+
+	case COM_RESETSETTINGS:
+		retvalCom = ComResetSettings(aaToken[1]);
 		break;
 
 	case COM_CLEARSCREEN:
-		ComClearscreen();
+		retvalCom = ComClearscreen();
 		break;
 
 	case COM_EXIT:
-		RequestApplicationExit();
+		retvalCom = ComExit();
 		break;
 	}
 
-	if (retval != OK)
+	// failure handling
+	if (retvalCom != CRV_OK)
 	{
-		m_Log.LogErr("Invalid parameters");
-		ComHelp(ID);
+		switch (retvalCom)
+		{
+		case CRV_ERROR:
+			// own error message is already output by function
+			break;
+
+		case CRV_INVALIDPARAMS:
+			m_Log.LogErr("Invalid parameters");
+			break;
+
+		case CRV_CANCELLED:
+			m_Log.Log("Operation cancelled");
+			printHelpOnError = false;
+			break;
+		}
+
+		if (printHelpOnError)
+			ComHelp(ID);
 	}
+
+	// saving
+	if (doAutoSave && (m_AutoSave || forceAutoSave))
+	{
+		retval = SaveSaveData();
+		if (retval != OK)
+			return ERROR;
+	}
+
+	if (retvalCom != CRV_OK)
+		return ERROR;
 
 	return OK;
 }
@@ -336,7 +372,7 @@ int CMainLogic::ExtractNumberFromToken(const char* paToken, U64 *pNumber)
 		pConvertableInput = paToken;// if no prefix is given, the convertable input is the token instead of the content which is missing some characters
 
 		// check if non-prefixed input is matching the format of the default type
-		numType = GetNumberFromType(m_DefaultInputFormat)->m_NumType;
+		numType = GetNumberFromType(m_DefaultNumberType)->m_NumType;
 	}
 
 	// type still cannot be determined, return
@@ -356,30 +392,11 @@ int CMainLogic::ExtractNumberFromToken(const char* paToken, U64 *pNumber)
 	return OK;
 }
 
-CMainLogic::S_OPERATOR* CMainLogic::GetOperatorFromType(E_OPTYPES OpType)
-{
-	for (int i = 0; i < ARRAYSIZE(m_asOperators); ++i)
-	{
-		if (OpType == m_asOperators[i].m_OpType)
-			return &m_asOperators[i];
-	}
-
-	return &m_asOperators[OPT_INVALID];
-}
-
-CMainLogic::S_OPERATOR* CMainLogic::GetOperatorFromToken(const char* paToken)
-{
-	for (int i = 0; i < ARRAYSIZE(m_asOperators); ++i)
-	{
-		if (CCore::StringCompareNocase(paToken, m_asOperators[i].m_aOperator, CMAINLOGIC_CONSOLE_TOKEN_SIZE) == 0)
-			return &m_asOperators[i];
-	}
-
-	return &m_asOperators[OPT_INVALID];
-}
-
 int CMainLogic::CheckSyntax(S_TOKEN* pasToken, size_t AmountTokens)
 {
+	return OK;
+
+	/*
 	int prevOpFlags = 0;
 	S_TOKEN *psPrevious = 0;
 	S_TOKEN* psCurrent = 0;
@@ -453,7 +470,7 @@ int CMainLogic::CheckSyntax(S_TOKEN* pasToken, size_t AmountTokens)
 		psPrevious = psCurrent;
 	}
 
-	return OK;
+	return OK;*/
 }
 
 U64 CMainLogic::Calculate(S_TOKEN* pasToken, size_t AmountTokens)
@@ -679,6 +696,67 @@ int CMainLogic::GetOperatorFlags(E_OPTYPES Sign, int SigFlags)
 	return 0;
 }
 
+bool CMainLogic::CheckNumberPrefixCollisions(const char* pString, S_NUMBER** ppsNumberColliding)
+{
+	for (int i = 0; i < ARRAYSIZE(m_asNumbers); ++i)
+	{
+		if (CCore::StringCompareNocase(pString, m_asNumbers[i].m_aPrefix, CMAINLOGIC_CONSOLE_TOKEN_SIZE) == 0)
+		{
+			*ppsNumberColliding = &m_asNumbers[i];
+			return true;
+		}
+	}
+
+	return false;
+}
+
+bool CMainLogic::CheckOperatorCollisions(const char* pString, S_OPERATOR** ppsOperatorColliding)
+{
+	for (int i = 0; i < ARRAYSIZE(m_asOperators); ++i)
+	{
+		if (CCore::StringCompareNocase(pString, m_asOperators[i].m_aOperator, CMAINLOGIC_CONSOLE_TOKEN_SIZE) == 0)
+		{
+			*ppsOperatorColliding = &m_asOperators[i];
+			return true;
+		}
+	}
+
+	return false;
+}
+
+CMainLogic::S_OPERATOR* CMainLogic::GetOperatorFromType(E_OPTYPES OpType)
+{
+	for (int i = 0; i < ARRAYSIZE(m_asOperators); ++i)
+	{
+		if (OpType == m_asOperators[i].m_OpType)
+			return &m_asOperators[i];
+	}
+
+	return &m_asOperators[OPT_INVALID];
+}
+
+CMainLogic::S_OPERATOR* CMainLogic::GetOperatorFromType(const char *pType)
+{
+	for (int i = 0; i < ARRAYSIZE(m_asOperators); ++i)
+	{
+		if (CCore::StringCompareNocase(pType, m_asOperators[i].m_aName, CMAINLOGIC_CONSOLE_TOKEN_SIZE) == 0)
+			return &m_asOperators[i];
+	}
+
+	return &m_asOperators[OPT_INVALID];
+}
+
+CMainLogic::S_OPERATOR* CMainLogic::GetOperatorFromToken(const char* paToken)
+{
+	for (int i = 0; i < ARRAYSIZE(m_asOperators); ++i)
+	{
+		if (CCore::StringCompareNocase(paToken, m_asOperators[i].m_aOperator, CMAINLOGIC_CONSOLE_TOKEN_SIZE) == 0)
+			return &m_asOperators[i];
+	}
+
+	return &m_asOperators[OPT_INVALID];
+}
+
 CMainLogic::S_NUMBER* CMainLogic::GetNumberFromType(E_NUMTYPES NumType)
 {
 	for (int i = 0; i < ARRAYSIZE(m_asNumbers); ++i)
@@ -689,6 +767,18 @@ CMainLogic::S_NUMBER* CMainLogic::GetNumberFromType(E_NUMTYPES NumType)
 
 	return &m_asNumbers[NUT_INVALID];
 }
+
+CMainLogic::S_NUMBER* CMainLogic::GetNumberFromType(const char *pType)
+{
+	for (int i = 0; i < ARRAYSIZE(m_asNumbers); ++i)
+	{
+		if (CCore::StringCompareNocase(pType, m_asNumbers[i].m_aName, CMAINLOGIC_CONSOLE_TOKEN_SIZE) == 0)
+			return &m_asNumbers[i];
+	}
+
+	return &m_asNumbers[NUT_INVALID];
+}
+
 
 CMainLogic::S_NUMBER* CMainLogic::GetNumberFromPrefix(const char *pPrefix)
 {
@@ -845,10 +935,110 @@ CMainLogic::E_USERANSWERS CMainLogic::GetUserAnswer(const char *pQuestion, ...)
 	return ANS_INVALID;
 }
 
-int CMainLogic::ComHelp(E_COMMANDS ID)
+int CMainLogic::LoadSaveData()
+{
+	int retval = 0;
+
+	// load save data
+	retval = m_SaveFile.LoadSaveFile();
+	if (retval != OK)
+		return ERROR;
+
+	// apply
+	// number prefixes
+	strncpy(m_asNumbers[NUT_BINARY].m_aPrefix, m_SaveFile.m_asSaveKeys[CSaveFile::SK_NUMPREFIX_BINARY].m_aValue, ARRAYSIZE(m_asNumbers[0].m_aPrefix));
+	strncpy(m_asNumbers[NUT_DUAL].m_aPrefix, m_SaveFile.m_asSaveKeys[CSaveFile::SK_NUMPREFIX_DUAL].m_aValue, ARRAYSIZE(m_asNumbers[0].m_aPrefix));
+	strncpy(m_asNumbers[NUT_OCTAL].m_aPrefix, m_SaveFile.m_asSaveKeys[CSaveFile::SK_NUMPREFIX_OCTAL].m_aValue, ARRAYSIZE(m_asNumbers[0].m_aPrefix));
+	strncpy(m_asNumbers[NUT_DECIMAL].m_aPrefix, m_SaveFile.m_asSaveKeys[CSaveFile::SK_NUMPREFIX_DECIMAL].m_aValue, ARRAYSIZE(m_asNumbers[0].m_aPrefix));
+	strncpy(m_asNumbers[NUT_HEXADECIMAL].m_aPrefix, m_SaveFile.m_asSaveKeys[CSaveFile::SK_NUMPREFIX_HEXADECIMAL].m_aValue, ARRAYSIZE(m_asNumbers[0].m_aPrefix));
+
+	// operator prefixes
+	strncpy(m_asOperators[OPT_ADD].m_aOperator, m_SaveFile.m_asSaveKeys[CSaveFile::SK_OPPREFIX_ADD].m_aValue, ARRAYSIZE(m_asOperators[0].m_aOperator));
+	strncpy(m_asOperators[OPT_SUBTRACT].m_aOperator, m_SaveFile.m_asSaveKeys[CSaveFile::SK_OPPREFIX_SUBTRACT].m_aValue, ARRAYSIZE(m_asOperators[0].m_aOperator));
+	strncpy(m_asOperators[OPT_MULTIPLY].m_aOperator, m_SaveFile.m_asSaveKeys[CSaveFile::SK_OPPREFIX_MULTIPLY].m_aValue, ARRAYSIZE(m_asOperators[0].m_aOperator));
+	strncpy(m_asOperators[OPT_DIVIDE].m_aOperator, m_SaveFile.m_asSaveKeys[CSaveFile::SK_OPPREFIX_DIVIDE].m_aValue, ARRAYSIZE(m_asOperators[0].m_aOperator));
+	strncpy(m_asOperators[OPT_EXPONENTIAL].m_aOperator, m_SaveFile.m_asSaveKeys[CSaveFile::SK_OPPREFIX_EXPONENTIAL].m_aValue, ARRAYSIZE(m_asOperators[0].m_aOperator));
+	strncpy(m_asOperators[OPT_MODULO].m_aOperator, m_SaveFile.m_asSaveKeys[CSaveFile::SK_OPPREFIX_MODULO].m_aValue, ARRAYSIZE(m_asOperators[0].m_aOperator));
+	strncpy(m_asOperators[OPT_AND].m_aOperator, m_SaveFile.m_asSaveKeys[CSaveFile::SK_OPPREFIX_AND].m_aValue, ARRAYSIZE(m_asOperators[0].m_aOperator));
+	strncpy(m_asOperators[OPT_OR].m_aOperator, m_SaveFile.m_asSaveKeys[CSaveFile::SK_OPPREFIX_OR].m_aValue, ARRAYSIZE(m_asOperators[0].m_aOperator));
+	strncpy(m_asOperators[OPT_XOR].m_aOperator, m_SaveFile.m_asSaveKeys[CSaveFile::SK_OPPREFIX_XOR].m_aValue, ARRAYSIZE(m_asOperators[0].m_aOperator));
+	strncpy(m_asOperators[OPT_INVERT].m_aOperator, m_SaveFile.m_asSaveKeys[CSaveFile::SK_OPPREFIX_INVERT].m_aValue, ARRAYSIZE(m_asOperators[0].m_aOperator));
+	strncpy(m_asOperators[OPT_REVERT].m_aOperator, m_SaveFile.m_asSaveKeys[CSaveFile::SK_OPPREFIX_REVERT].m_aValue, ARRAYSIZE(m_asOperators[0].m_aOperator));
+	strncpy(m_asOperators[OPT_LSHIFT].m_aOperator, m_SaveFile.m_asSaveKeys[CSaveFile::SK_OPPREFIX_LSHIFT].m_aValue, ARRAYSIZE(m_asOperators[0].m_aOperator));
+	strncpy(m_asOperators[OPT_RSHIFT].m_aOperator, m_SaveFile.m_asSaveKeys[CSaveFile::SK_OPPREFIX_RSHIFT].m_aValue, ARRAYSIZE(m_asOperators[0].m_aOperator));
+	strncpy(m_asOperators[OPT_BRACKET_OPEN].m_aOperator, m_SaveFile.m_asSaveKeys[CSaveFile::SK_OPPREFIX_BRACKET_OPEN].m_aValue, ARRAYSIZE(m_asOperators[0].m_aOperator));
+	strncpy(m_asOperators[OPT_BRACKET_CLOSE].m_aOperator, m_SaveFile.m_asSaveKeys[CSaveFile::SK_OPPREFIX_BRACKET_CLOSE].m_aValue, ARRAYSIZE(m_asOperators[0].m_aOperator));
+
+	// result order
+	strncpy(m_aResultOrder, m_SaveFile.m_asSaveKeys[CSaveFile::SK_RESULTORDER].m_aValue, ARRAYSIZE(m_aResultOrder));
+
+	// fullscreen
+	m_StartFullscreen = atoi(m_SaveFile.m_asSaveKeys[CSaveFile::SK_STARTFULLSCREEN].m_aValue);
+
+	// auto save
+	m_AutoSave = atoi(m_SaveFile.m_asSaveKeys[CSaveFile::SK_AUTOSAVE].m_aValue);
+
+	// input format
+	m_DefaultNumberType = (E_NUMTYPES)atoi(m_SaveFile.m_asSaveKeys[CSaveFile::SK_INPUTFORMAT].m_aValue);
+
+	return OK;
+}
+
+int CMainLogic::SaveSaveData()// laststop: test all save file write/save
+{
+	int retval = 0;
+
+	// write back
+	// number prefixes
+	strncpy(m_SaveFile.m_asSaveKeys[CSaveFile::SK_NUMPREFIX_BINARY].m_aValue, m_asNumbers[NUT_BINARY].m_aPrefix, ARRAYSIZE(m_SaveFile.m_asSaveKeys[0].m_aValue));
+	strncpy(m_SaveFile.m_asSaveKeys[CSaveFile::SK_NUMPREFIX_DUAL].m_aValue, m_asNumbers[NUT_DUAL].m_aPrefix, ARRAYSIZE(m_SaveFile.m_asSaveKeys[0].m_aValue));
+	strncpy(m_SaveFile.m_asSaveKeys[CSaveFile::SK_NUMPREFIX_OCTAL].m_aValue, m_asNumbers[NUT_OCTAL].m_aPrefix, ARRAYSIZE(m_SaveFile.m_asSaveKeys[0].m_aValue));
+	strncpy(m_SaveFile.m_asSaveKeys[CSaveFile::SK_NUMPREFIX_DECIMAL].m_aValue, m_asNumbers[NUT_DECIMAL].m_aPrefix, ARRAYSIZE(m_SaveFile.m_asSaveKeys[0].m_aValue));
+	strncpy(m_SaveFile.m_asSaveKeys[CSaveFile::SK_NUMPREFIX_HEXADECIMAL].m_aValue, m_asNumbers[NUT_HEXADECIMAL].m_aPrefix, ARRAYSIZE(m_SaveFile.m_asSaveKeys[0].m_aValue));
+
+	// operator prefixes
+	strncpy(m_SaveFile.m_asSaveKeys[CSaveFile::SK_OPPREFIX_ADD].m_aValue, m_asOperators[OPT_ADD].m_aOperator, ARRAYSIZE(m_SaveFile.m_asSaveKeys[0].m_aValue));
+	strncpy(m_SaveFile.m_asSaveKeys[CSaveFile::SK_OPPREFIX_SUBTRACT].m_aValue, m_asOperators[OPT_SUBTRACT].m_aOperator, ARRAYSIZE(m_SaveFile.m_asSaveKeys[0].m_aValue));
+	strncpy(m_SaveFile.m_asSaveKeys[CSaveFile::SK_OPPREFIX_MULTIPLY].m_aValue, m_asOperators[OPT_MULTIPLY].m_aOperator, ARRAYSIZE(m_SaveFile.m_asSaveKeys[0].m_aValue));
+	strncpy(m_SaveFile.m_asSaveKeys[CSaveFile::SK_OPPREFIX_DIVIDE].m_aValue, m_asOperators[OPT_DIVIDE].m_aOperator, ARRAYSIZE(m_SaveFile.m_asSaveKeys[0].m_aValue));
+	strncpy(m_SaveFile.m_asSaveKeys[CSaveFile::SK_OPPREFIX_EXPONENTIAL].m_aValue, m_asOperators[OPT_EXPONENTIAL].m_aOperator, ARRAYSIZE(m_SaveFile.m_asSaveKeys[0].m_aValue));
+	strncpy(m_SaveFile.m_asSaveKeys[CSaveFile::SK_OPPREFIX_MODULO].m_aValue, m_asOperators[OPT_MODULO].m_aOperator, ARRAYSIZE(m_SaveFile.m_asSaveKeys[0].m_aValue));
+	strncpy(m_SaveFile.m_asSaveKeys[CSaveFile::SK_OPPREFIX_AND].m_aValue, m_asOperators[OPT_AND].m_aOperator, ARRAYSIZE(m_SaveFile.m_asSaveKeys[0].m_aValue));
+	strncpy(m_SaveFile.m_asSaveKeys[CSaveFile::SK_OPPREFIX_OR].m_aValue, m_asOperators[OPT_OR].m_aOperator, ARRAYSIZE(m_SaveFile.m_asSaveKeys[0].m_aValue));
+	strncpy(m_SaveFile.m_asSaveKeys[CSaveFile::SK_OPPREFIX_XOR].m_aValue, m_asOperators[OPT_XOR].m_aOperator, ARRAYSIZE(m_SaveFile.m_asSaveKeys[0].m_aValue));
+	strncpy(m_SaveFile.m_asSaveKeys[CSaveFile::SK_OPPREFIX_INVERT].m_aValue, m_asOperators[OPT_INVERT].m_aOperator, ARRAYSIZE(m_SaveFile.m_asSaveKeys[0].m_aValue));
+	strncpy(m_SaveFile.m_asSaveKeys[CSaveFile::SK_OPPREFIX_REVERT].m_aValue, m_asOperators[OPT_REVERT].m_aOperator, ARRAYSIZE(m_SaveFile.m_asSaveKeys[0].m_aValue));
+	strncpy(m_SaveFile.m_asSaveKeys[CSaveFile::SK_OPPREFIX_LSHIFT].m_aValue, m_asOperators[OPT_LSHIFT].m_aOperator, ARRAYSIZE(m_SaveFile.m_asSaveKeys[0].m_aValue));
+	strncpy(m_SaveFile.m_asSaveKeys[CSaveFile::SK_OPPREFIX_RSHIFT].m_aValue, m_asOperators[OPT_RSHIFT].m_aOperator, ARRAYSIZE(m_SaveFile.m_asSaveKeys[0].m_aValue));
+	strncpy(m_SaveFile.m_asSaveKeys[CSaveFile::SK_OPPREFIX_BRACKET_OPEN].m_aValue, m_asOperators[OPT_BRACKET_OPEN].m_aOperator, ARRAYSIZE(m_SaveFile.m_asSaveKeys[0].m_aValue));
+	strncpy(m_SaveFile.m_asSaveKeys[CSaveFile::SK_OPPREFIX_BRACKET_CLOSE].m_aValue, m_asOperators[OPT_BRACKET_CLOSE].m_aOperator,		ARRAYSIZE(m_SaveFile.m_asSaveKeys[0].m_aValue));
+
+	// result order
+	strncpy(m_SaveFile.m_asSaveKeys[CSaveFile::SK_RESULTORDER].m_aValue, m_aResultOrder, ARRAYSIZE(m_SaveFile.m_asSaveKeys[0].m_aValue));
+
+	// fullscreen
+	snprintf(m_SaveFile.m_asSaveKeys[CSaveFile::SK_STARTFULLSCREEN].m_aValue, ARRAYSIZE(m_SaveFile.m_asSaveKeys[0].m_aValue), "%d", m_StartFullscreen);
+
+	// auto save
+	snprintf(m_SaveFile.m_asSaveKeys[CSaveFile::SK_AUTOSAVE].m_aValue, ARRAYSIZE(m_SaveFile.m_asSaveKeys[0].m_aValue), "%d", m_AutoSave);
+
+	// input format
+	snprintf(m_SaveFile.m_asSaveKeys[CSaveFile::SK_INPUTFORMAT].m_aValue, ARRAYSIZE(m_SaveFile.m_asSaveKeys[0].m_aValue), "%d", m_DefaultNumberType);
+
+	// save save data
+	retval = m_SaveFile.SaveSaveFile();
+	if (retval != OK)
+		return ERROR;
+
+	return OK;
+}
+
+CMainLogic::E_COMRETVALS CMainLogic::ComHelp(E_COMMANDS ID)
 {
 	char aParameters[CMAINLOGIC_MAX_LEN_COMHELP_BUFFERS] = { 0 };
 	char aExample[CMAINLOGIC_MAX_LEN_COMHELP_BUFFERS] = { 0 };
+	S_NUMBER* psNumber = 0;
+	S_OPERATOR* psOperator = 0;
 
 	// print full help
 	if (ID < 0)
@@ -858,7 +1048,7 @@ int CMainLogic::ComHelp(E_COMMANDS ID)
 		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX "Enter a calculation or one of the commands below.");
 		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX "Max. number size is 64 bit.");
 		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX "All input is case insensitive.");
-		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX "Default number type (when no prefix is given): %s", GetNumberFromType(m_DefaultInputFormat)->m_aName);
+		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX "Default number type (when no prefix is given): %s", GetNumberFromType(m_DefaultNumberType)->m_aName);
 		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX "Auto saving: %s", 1 == 1 ? "On" : "Off");
 		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX);
 
@@ -887,30 +1077,20 @@ int CMainLogic::ComHelp(E_COMMANDS ID)
 
 		// NUMPREFIXES
 		m_Log.Log(CMAINLOGIC_COMHELP_HEADER_NUMPREFIXES);
-		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX "%s... %s", GetNumberFromType(NUT_BINARY)->m_aName, GetNumberFromType(NUT_BINARY)->m_aPrefix);
-		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX "%s... %s", GetNumberFromType(NUT_DUAL)->m_aName, GetNumberFromType(NUT_DUAL)->m_aPrefix);
-		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX "%s... %s", GetNumberFromType(NUT_OCTAL)->m_aName, GetNumberFromType(NUT_OCTAL)->m_aPrefix);
-		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX "%s... %s", GetNumberFromType(NUT_DECIMAL)->m_aName, GetNumberFromType(NUT_DECIMAL)->m_aPrefix);
-		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX "%s... %s", GetNumberFromType(NUT_HEXADECIMAL)->m_aName, GetNumberFromType(NUT_HEXADECIMAL)->m_aPrefix);
+		for (int i = (int)NUT_INVALID + 1; i < ARRAYSIZE(m_asNumbers); ++i)
+		{
+			psNumber = GetNumberFromType((E_NUMTYPES)i);
+			m_Log.Log(CMAINLOGIC_COMHELP_PREFIX "%s... %s",psNumber->m_aName, psNumber->m_aPrefix);
+		}
 		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX);
 
 		// OPERATORS
 		m_Log.Log(CMAINLOGIC_COMHELP_HEADER_OPERATORS);
-		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX	CMAINLOGIC_OPNAME_ADD			"... %s", GetOperatorFromType(OPT_ADD)->m_aOperator);
-		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX	CMAINLOGIC_OPNAME_SUBTRACT		"... %s", GetOperatorFromType(OPT_SUBTRACT)->m_aOperator);
-		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX	CMAINLOGIC_OPNAME_MULTIPLY		"... %s", GetOperatorFromType(OPT_MULTIPLY)->m_aOperator);
-		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX	CMAINLOGIC_OPNAME_DIVIDE		"... %s", GetOperatorFromType(OPT_DIVIDE)->m_aOperator);
-		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX	CMAINLOGIC_OPNAME_EXPONENTIAL	"... %s", GetOperatorFromType(OPT_EXPONENTIAL)->m_aOperator);
-		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX	CMAINLOGIC_OPNAME_MODULO		"... %s", GetOperatorFromType(OPT_MODULO)->m_aOperator);
-		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX	CMAINLOGIC_OPNAME_AND			"... %s", GetOperatorFromType(OPT_AND)->m_aOperator);
-		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX	CMAINLOGIC_OPNAME_OR			"... %s", GetOperatorFromType(OPT_OR)->m_aOperator);
-		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX	CMAINLOGIC_OPNAME_XOR			"... %s", GetOperatorFromType(OPT_XOR)->m_aOperator);
-		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX	CMAINLOGIC_OPNAME_INVERT		"... %s", GetOperatorFromType(OPT_INVERT)->m_aOperator);
-		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX	CMAINLOGIC_OPNAME_REVERT		"... %s", GetOperatorFromType(OPT_REVERT)->m_aOperator);
-		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX	CMAINLOGIC_OPNAME_LSHIFT		"... %s", GetOperatorFromType(OPT_LSHIFT)->m_aOperator);
-		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX	CMAINLOGIC_OPNAME_RSHIFT		"... %s", GetOperatorFromType(OPT_RSHIFT)->m_aOperator);
-		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX	CMAINLOGIC_OPNAME_BRACKET_OPEN	"... %s", GetOperatorFromType(OPT_BRACKET_OPEN)->m_aOperator);
-		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX	CMAINLOGIC_OPNAME_BRACKET_CLOSE	"... %s", GetOperatorFromType(OPT_BRACKET_CLOSE)->m_aOperator);
+		for (int i = (int)OPT_INVALID + 1; i < ARRAYSIZE(m_asOperators); ++i)
+		{
+			psOperator = GetOperatorFromType((E_OPTYPES)i);
+			m_Log.Log(CMAINLOGIC_COMHELP_PREFIX "%s... %s", psOperator->m_aName, psOperator->m_aOperator);
+		}
 		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX);
 
 		// NUMSHORTNAMES
@@ -957,52 +1137,173 @@ int CMainLogic::ComHelp(E_COMMANDS ID)
 			m_Log.Log(CMAINLOGIC_COMHELP_PREFIX "%s%s", aParameters, aExample);
 		}
 	}
-	return OK;
+
+	return CRV_OK;
 }
 
-int CMainLogic::ComSetinputformat(const char *pType)
+CMainLogic::E_COMRETVALS CMainLogic::ComSetinputformat(const char *pType)
 {
-	if (CCore::StringCompareNocase(pType, CMAINLOGIC_NUMNAME_BINARY, CMAINLOGIC_CONSOLE_TOKEN_SIZE) == 0)
-		m_DefaultInputFormat = NUT_BINARY;
-	else if (CCore::StringCompareNocase(pType, CMAINLOGIC_NUMNAME_DUAL, CMAINLOGIC_CONSOLE_TOKEN_SIZE) == 0)
-		m_DefaultInputFormat = NUT_DUAL;
-	else if (CCore::StringCompareNocase(pType, CMAINLOGIC_NUMNAME_OCTAL, CMAINLOGIC_CONSOLE_TOKEN_SIZE) == 0)
-		m_DefaultInputFormat = NUT_OCTAL;
-	else if (CCore::StringCompareNocase(pType, CMAINLOGIC_NUMNAME_DECIMAL, CMAINLOGIC_CONSOLE_TOKEN_SIZE) == 0)
-		m_DefaultInputFormat = NUT_DECIMAL;
-	else if (CCore::StringCompareNocase(pType, CMAINLOGIC_NUMNAME_HEXADECIMAL, CMAINLOGIC_CONSOLE_TOKEN_SIZE) == 0)
-		m_DefaultInputFormat = NUT_HEXADECIMAL;
-	else
-		return ERROR;
+	S_NUMBER* psNumber = 0;
+
+	psNumber = GetNumberFromType(pType);
+	if (psNumber->m_NumType == NUT_INVALID)
+		return CRV_INVALIDPARAMS;
+
+	m_DefaultNumberType = psNumber->m_NumType;
 
 	m_Log.Log("Default input format is now %s", pType);
 
-	return OK;
+	return CRV_OK;
 }
 
-int CMainLogic::ComSetnumberprefix(const char *pType, const char *pPrefix)
+CMainLogic::E_COMRETVALS CMainLogic::ComSetnumberprefix(const char *pType, const char *pNewPrefix)
 {
 	E_NUMTYPES numberType = NUT_INVALID;
+	S_NUMBER* psNumber = 0;
+	S_NUMBER* psNumberColliding = 0;
+	S_OPERATOR* psOperatorColliding = 0;
+	E_USERANSWERS userAnswer = ANS_INVALID;
 
-	if (CCore::StringCompareNocase(pType, CMAINLOGIC_NUMNAME_BINARY, CMAINLOGIC_CONSOLE_TOKEN_SIZE) == 0)
-		numberType = NUT_BINARY;
-	else if (CCore::StringCompareNocase(pType, CMAINLOGIC_NUMNAME_DUAL, CMAINLOGIC_CONSOLE_TOKEN_SIZE) == 0)
-		numberType = NUT_DUAL;
-	else if (CCore::StringCompareNocase(pType, CMAINLOGIC_NUMNAME_OCTAL, CMAINLOGIC_CONSOLE_TOKEN_SIZE) == 0)
-		numberType = NUT_OCTAL;
-	else if (CCore::StringCompareNocase(pType, CMAINLOGIC_NUMNAME_DECIMAL, CMAINLOGIC_CONSOLE_TOKEN_SIZE) == 0)
-		numberType = NUT_DECIMAL;
-	else if (CCore::StringCompareNocase(pType, CMAINLOGIC_NUMNAME_HEXADECIMAL, CMAINLOGIC_CONSOLE_TOKEN_SIZE) == 0)
-		numberType = NUT_HEXADECIMAL;
-	else
-		return ERROR;
+	psNumber = GetNumberFromType(pType);
+	if (psNumber->m_NumType == NUT_INVALID)
+		return CRV_INVALIDPARAMS;
 
-	m_Log.Log("Number prefix for %s is now %s", pType, pPrefix);
+	// check empty
+	if (CCore::StringIsEmpty(pNewPrefix))
+	{
+		m_Log.LogErr("Prefix must not be empty");
+		return CRV_ERROR;
+	}
 
-	return OK;
+	// check collisions with other number prefixes
+	if (CheckNumberPrefixCollisions(pNewPrefix, &psNumberColliding))
+	{
+		userAnswer = GetUserAnswer("New prefix collides with the %s prefix, do you want to proceed", psNumberColliding->m_aName);
+		if (userAnswer != ANS_YES)
+			return CRV_CANCELLED;
+	}
+
+	// check collisions with other operators
+	if (CheckOperatorCollisions(pNewPrefix, &psOperatorColliding))
+	{
+		userAnswer = GetUserAnswer("New prefix collides with the operator '%s', do you want to proceed", psOperatorColliding->m_aName);
+		if (userAnswer != ANS_YES)
+			return CRV_CANCELLED;
+	}
+
+	// change operator
+	memset(psNumber->m_aPrefix, 0, ARRAYSIZE(psNumber->m_aPrefix));
+	strncpy(psNumber->m_aPrefix, pNewPrefix, ARRAYSIZE(psNumber->m_aPrefix));
+
+	m_Log.Log("Number prefix for %s is now '%s'", pType, pNewPrefix);
+
+	return CRV_OK;
 }
 
-int CMainLogic::ComClearscreen()
+CMainLogic::E_COMRETVALS CMainLogic::ComSetoperator(const char* pType, const char* pNewOperator)
 {
-	return system("cls");
+	E_OPTYPES operatorType = OPT_INVALID;
+	S_OPERATOR* psOperator = 0;
+	S_NUMBER* psNumberColliding = 0;
+	S_OPERATOR* psOperatorColliding = 0;
+	E_USERANSWERS userAnswer = ANS_INVALID;
+
+	psOperator = GetOperatorFromType(pType);
+	if (psOperator->m_OpType == NUT_INVALID)
+		return CRV_INVALIDPARAMS;
+
+	// check empty
+	if (CCore::StringIsEmpty(pNewOperator))
+	{
+		m_Log.LogErr("Operator must not be empty");
+		return CRV_ERROR;
+	}
+
+	// check collisions with other operators
+	if (CheckOperatorCollisions(pNewOperator, &psOperatorColliding))
+	{
+		userAnswer = GetUserAnswer("New operator collides with the operator '%s', do you want to proceed", psOperatorColliding->m_aName);
+		if (userAnswer != ANS_YES)
+			return CRV_CANCELLED;
+	}
+
+	// check collisions with other number prefixes
+	if (CheckNumberPrefixCollisions(pNewOperator, &psNumberColliding))
+	{
+		userAnswer = GetUserAnswer("New operator collides with the %s prefix, do you want to proceed", psNumberColliding->m_aName);
+		if (userAnswer != ANS_YES)
+			return CRV_CANCELLED;
+	}
+
+	// change operator
+	memset(psOperator->m_aOperator, 0, ARRAYSIZE(psOperator->m_aOperator));
+	strncpy(psOperator->m_aOperator, pNewOperator, ARRAYSIZE(psOperator->m_aOperator));
+
+	m_Log.Log("Operator for %s is now '%s'", pType, pNewOperator);
+
+	return CRV_OK;
+}
+
+CMainLogic::E_COMRETVALS CMainLogic::ComSetresultorder(const char* pOrder)
+{
+	return CRV_OK;
+}
+
+CMainLogic::E_COMRETVALS CMainLogic::ComSetautosave(const char* pOption)
+{
+	return CRV_OK;
+}
+
+CMainLogic::E_COMRETVALS CMainLogic::ComSave(const char* pOption)
+{
+	int retval = 0;
+
+	retval = SaveSaveData();
+	if (retval != OK)
+		return CRV_ERROR;
+
+	return CRV_OK;
+}
+
+CMainLogic::E_COMRETVALS CMainLogic::ComResetSettings(const char* pOption)
+{
+	E_USERANSWERS userAnswer = ANS_INVALID;
+	int retval = 0;
+
+	// let user confirm
+	userAnswer = GetUserAnswer("Are you sure");
+	if (userAnswer != ANS_YES)
+		return CRV_CANCELLED;
+
+	// reset settings
+	retval = m_SaveFile.ResetSaveFile();
+	if (retval != OK)
+		return CRV_ERROR;
+
+	// apply loaded data
+	LoadSaveData();
+
+	m_Log.Log("Settings have been reset");
+
+	return CRV_OK;
+}
+
+CMainLogic::E_COMRETVALS CMainLogic::ComClearscreen()
+{
+	int retval = 0;
+
+	retval = system("cls");
+	if (retval != 0)
+	{
+		m_Log.Log("System command 'cls' returned exit code %d instead of 0", retval);
+		return CRV_ERROR;
+	}
+
+	return CRV_OK;
+}
+
+CMainLogic::E_COMRETVALS CMainLogic::ComExit()
+{
+	RequestApplicationExit();
+	return CRV_OK;
 }
