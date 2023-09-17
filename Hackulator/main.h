@@ -1,5 +1,7 @@
 #pragma once
 
+#include <thread>
+
 #include "core.h"
 
 // other
@@ -17,3 +19,6 @@
 
 #define MAIN_PARAM_SAVEFILEPATH MAIN_PREFIX_PARAM "s"
 #define MAIN_PARAM_SAVEFILEPATH_DESC "Specify the save file path, please include save file name and extension (optional, default: program location --> '" MAIN_SAVEFILE_NAME "')"
+
+int threadfunc_ObserveWindow();
+void CALLBACK onConsoleWindowStateChange(HWINEVENTHOOK hook, DWORD event, HWND wnd, LONG object, LONG child, DWORD thread, DWORD time);

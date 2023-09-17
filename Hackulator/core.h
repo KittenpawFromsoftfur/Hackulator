@@ -1,5 +1,7 @@
 #pragma once
 
+#include <thread>
+
 // value defines
 #define OK 0
 #define ERROR -1
@@ -24,6 +26,7 @@ public:
     CCore();
     ~CCore();
     static int StringCompareNocase(const char* pSource, const char* pCompare, size_t Len);
+    static int CharCompareNocase(char Source, char Compare);
     static bool StringIsEmpty(const char* pString);
     static void StringCopyIgnore(char* pDest, const char* pSource, size_t Len, const char* pIgnore);
     static void StringRevert(char *pString);
@@ -34,5 +37,6 @@ public:
     static bool CheckFileExists(const char* pFilePath);
     static U64 PowULL(U64 Base, int Exponent);
     static int GetFlags(int Value, int Flags);
+    static int DetachThreadSafely(std::thread* pThread);
     static void Exit(int ExitCode);
 };

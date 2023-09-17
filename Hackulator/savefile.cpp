@@ -16,6 +16,9 @@ CSaveFile::CSaveFile(CMainLogic *pMainLogic, char *pSaveFilePath)
     memset(m_aSaveFilePath, 0, ARRAYSIZE(m_aSaveFilePath));
     strncpy(m_aSaveFilePath, pSaveFilePath, ARRAYSIZE(m_aSaveFilePath));
 
+	// write preprocessor incapable default values
+	snprintf(m_asSaveKeys[SK_INPUTFORMAT].m_aDefaultValue, ARRAYSIZE(m_asSaveKeys[0].m_aDefaultValue), "%d", CMainLogic::NUT_DECIMAL);
+	
 	// check if save file exists
 	fileExists = CCore::CheckFileExists(m_aSaveFilePath);
 	
@@ -27,11 +30,6 @@ CSaveFile::CSaveFile(CMainLogic *pMainLogic, char *pSaveFilePath)
 		{
 			CCore::Exit(EXITCODE_ERR_SAVEFILE);
 		}
-	}
-	else// save file exists, load
-	{
-		// load save file
-		// ...
 	}
 }
 
@@ -97,12 +95,12 @@ int CSaveFile::CreateSaveFile()
 	}
 
 	// write default values
-	for (int i = 0; i < ARRAYSIZE(m_asSaveKeysDefault); ++i)
+	for (int i = 0; i < ARRAYSIZE(m_asSaveKeys); ++i)
 	{
-		retval = WriteKey(m_asSaveKeysDefault[i].m_Key, m_asSaveKeysDefault[i].m_aValue);
+		retval = WriteKey(m_asSaveKeys[i].m_Key, m_asSaveKeys[i].m_aDefaultValue);
 		if (retval != OK)
 		{
-			m_pMainLogic->m_Log.LogErr("Writing default key %d", m_asSaveKeysDefault[i].m_Key);
+			m_pMainLogic->m_Log.LogErr("Writing default key %d", m_asSaveKeys[i].m_Key);
 			fclose(pFile);
 			return ERROR;
 		}

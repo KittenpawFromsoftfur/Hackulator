@@ -34,6 +34,18 @@ int CCore::StringCompareNocase(const char* pSource, const char* pCompare, size_t
 	return 0;
 }
 
+int CCore::CharCompareNocase(char Source, char Compare)
+{
+	signed char diff = 0;
+
+	diff = tolower(Source) - tolower(Compare);
+
+	if (diff != 0)
+		return diff;
+
+	return 0;
+}
+
 bool CCore::StringIsEmpty(const char* pSource)
 {
 	if (strlen(pSource) == 0)
@@ -209,6 +221,17 @@ U64 CCore::PowULL(U64 Base, int Exponent)
 int GetFlags(int Value, int Flags)
 {
 	return (Value | Flags);
+}
+
+int CCore::DetachThreadSafely(std::thread* pThread)
+{
+	if (!pThread)
+		return ERROR;
+
+	if (pThread->joinable())
+		pThread->detach();
+
+	return OK;
 }
 
 void CCore::Exit(int ExitCode)

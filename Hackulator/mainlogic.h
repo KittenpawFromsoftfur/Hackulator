@@ -1,7 +1,6 @@
 #pragma once
 
 #include "log.h"
-#include "savefile.h"
 #include "core.h"
 
 // help
@@ -12,17 +11,16 @@
 #define CMAINLOGIC_COMHELP_HEADER_NUMPREFIXES			"<<<<<<<<<<<<<<<<<<< " CMAINLOGIC_COMHELP_HEADER_NUMPREFIXES_TEXT " >>>>>>>>>>>>>>>>>>>>"
 #define CMAINLOGIC_COMHELP_HEADER_OPERATORS_TEXT		"OPERATORS"
 #define CMAINLOGIC_COMHELP_HEADER_OPERATORS				"<<<<<<<<<<<<<<<<<<<<<< " CMAINLOGIC_COMHELP_HEADER_OPERATORS_TEXT " >>>>>>>>>>>>>>>>>>>>>>>"
-#define CMAINLOGIC_COMHELP_HEADER_NUMSHORTNAMES_TEXT	"NUMBER FORMAT SHORT NAMES"
-#define CMAINLOGIC_COMHELP_HEADER_NUMSHORTNAMES			"<<<<<<<<<<<<<< " CMAINLOGIC_COMHELP_HEADER_NUMSHORTNAMES_TEXT " >>>>>>>>>>>>>>>"
 #define CMAINLOGIC_COMHELP_TAILER						"<<<<<<<<<<<<<<<<<<<<<<<<<<<<>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
 #define CMAINLOGIC_COMHELP_PREFIX						"> "
 
 // numbers and operators
 #define CMAINLOGIC_NUMPREFIXES_LENGTH 12
 #define CMAINLOGIC_NUMNAMES_LENGTH 32
+#define CMAINLOGIC_NUMSHORTNAMES_LENGTH 2
 #define CMAINLOGIC_OPERATORS_LENGTH CMAINLOGIC_NUMPREFIXES_LENGTH
 #define CMAINLOGIC_OPNAMES_LENGTH CMAINLOGIC_NUMNAMES_LENGTH
-#define CMAINLOGIC_RESULTORDER_LEN 12
+#define CMAINLOGIC_RESULTORDER_LEN 24
 
 // input and tokenization
 #define CMAINLOGIC_CONSOLE_BUFFERLEN 256
@@ -37,6 +35,13 @@
 #define CMAINLOGIC_NUMNAME_OCTAL		"octal"
 #define CMAINLOGIC_NUMNAME_DECIMAL		"decimal"
 #define CMAINLOGIC_NUMNAME_HEXADECIMAL	"hexadecimal"
+
+// number short names
+#define CMAINLOGIC_NUMSHORTNAME_BINARY       "b"
+#define CMAINLOGIC_NUMSHORTNAME_DUAL         "u"
+#define CMAINLOGIC_NUMSHORTNAME_OCTAL        "o"
+#define CMAINLOGIC_NUMSHORTNAME_DECIMAL      "d"
+#define CMAINLOGIC_NUMSHORTNAME_HEXADECIMAL  "x"
 
 // operator names
 #define CMAINLOGIC_OPNAME_ADD			"add"
@@ -62,16 +67,32 @@
 #define OPFLAG_ALL 0xFFFFFFFFFFFFFFFF// all flags together
 
 // classes
+class CSaveFile;
+
 class CMainLogic
 {
 public:
+	// enums
+	enum E_NUMTYPES
+	{
+		NUT_INVALID,// ATTENTION! Invalid must be at first position
+		NUT_BINARY,
+		NUT_DUAL,
+		NUT_OCTAL,
+		NUT_DECIMAL,
+		NUT_HEXADECIMAL,
+		//NUT_ASCII,
+		AMOUNT_NUMBERTYPES,
+	};
+
     CMainLogic(bool StartFullscreen, char *pSaveFilePath);
     ~CMainLogic();
     int EntryPoint();
 	void RequestApplicationExit();
+	int OnConsoleWindowStateChange();
 
 	CLog m_Log;
-	CSaveFile m_SaveFile;
+	CSaveFile *m_pSaveFile;
 
 private:
 	// enums
@@ -82,6 +103,7 @@ private:
 		COM_SET_NUMBERPREFIX,
 		COM_SET_OPERATOR,
 		COM_SET_RESULTORDER,
+		COM_SET_RESPREFIXVIS,
 		COM_SET_AUTOSAVE,
 		COM_SAVE,
 		COM_RESETSETTINGS,
@@ -94,18 +116,6 @@ private:
 	{
 		TOT_NUMBER,
 		TOT_OPERATOR,
-	};
-
-	enum E_NUMTYPES
-	{
-		NUT_INVALID,// ATTENTION! Invalid must be at first position
-		NUT_BINARY,
-		NUT_DUAL,
-		NUT_OCTAL,
-		NUT_DECIMAL,
-		NUT_HEXADECIMAL,
-		//NUT_ASCII,
-		AMOUNT_NUMBERTYPES,
 	};
 
 	enum E_OPTYPES
@@ -147,6 +157,11 @@ private:
 	// structs
 	typedef struct
 	{
+		char m_aInputTokens[CMAINLOGIC_CONSOLE_TOKENS][CMAINLOGIC_CONSOLE_TOKEN_SIZE];
+	}S_INPUTTOKENS;
+
+	typedef struct
+	{
 		E_COMMANDS m_ID;
 		char m_aName[CMAINLOGIC_CONSOLE_TOKEN_SIZE];
 		char m_aDescription[CMAINLOGIC_MAX_LEN_COMHELP_BUFFERS];
@@ -168,6 +183,7 @@ private:
 		E_NUMTYPES m_NumType;
 		char m_aPrefix[CMAINLOGIC_NUMPREFIXES_LENGTH];
 		char m_aName[CMAINLOGIC_NUMNAMES_LENGTH];
+		char m_aShortName[CMAINLOGIC_NUMSHORTNAMES_LENGTH];
 		int m_Radix;
 	}S_NUMBER;
 
@@ -179,15 +195,15 @@ private:
 		int m_Flags;
 	}S_OPERATOR;
 
-	int ParseInput(const char* pInput, size_t LenInput, char* paaToken, size_t AmountTokens, size_t SizeToken);
-	int EvaluateTokens(char aaToken[CMAINLOGIC_CONSOLE_TOKENS][CMAINLOGIC_CONSOLE_TOKEN_SIZE]);
+	int ParseInput(const char* pInput, size_t LenInput, S_INPUTTOKENS *psInputTokens);
+	int EvaluateTokens(S_INPUTTOKENS *psInputTokens);
 	int ExtractNumberFromToken(const char *paToken, U64 *pNumber);
-	int ExecuteCommand(E_COMMANDS ID, char aaToken[CMAINLOGIC_CONSOLE_TOKENS][CMAINLOGIC_CONSOLE_TOKEN_SIZE]);
+	int ExecuteCommand(S_COMMAND *psCommand, S_INPUTTOKENS *psInputTokens);
 	int CheckSyntax(S_TOKEN* pasToken, size_t AmountTokens);
 	U64 Calculate(S_TOKEN* pasToken, size_t AmountTokens);
 	void PrintResult(U64 Result);
 	U64 ModifyNumberByOperator(U64 Number, E_OPTYPES OpType);
-	int GetOperatorFlags(E_OPTYPES OpType, int SigFlags);
+	int GetOperatorFlags(E_OPTYPES OpType, int OpFlags);
 	bool CheckNumberPrefixCollisions(const char* pPrefix, S_NUMBER** ppsNumberColliding);
 	bool CheckOperatorCollisions(const char* pPrefix, S_OPERATOR** ppsOperatorColliding);
 	S_OPERATOR* GetOperatorFromType(E_OPTYPES OpType);
@@ -206,6 +222,7 @@ private:
 	E_COMRETVALS ComSetnumberprefix(const char * pType, const char *pNewPrefix);
 	E_COMRETVALS ComSetoperator(const char * pOperator, const char *pNewOperator);
 	E_COMRETVALS ComSetresultorder(const char * pOrder);
+	E_COMRETVALS ComSetresultprefixvisibility(const char * pOrder);
 	E_COMRETVALS ComSetautosave(const char * pOption);
 	E_COMRETVALS ComSave(const char * pOption);
 	E_COMRETVALS ComResetSettings(const char * pOption);
@@ -217,27 +234,29 @@ private:
 	E_NUMTYPES m_DefaultNumberType;
 	bool m_AutoSave;
 	char m_aResultOrder[CMAINLOGIC_RESULTORDER_LEN];
+	char m_aResultPrefixVis[CMAINLOGIC_RESULTORDER_LEN];
 	S_COMMAND m_asCommands[AMOUNT_COMMANDS] = 
 	{
-		{ COM_HELP,				"help",				"Lists this help",													"",																											"" },
-		{ COM_SET_INPUTFORMAT,	"set_inputformat",	"Sets the default input number format (when no prefix is given)",	"<Number format label (see below \"" CMAINLOGIC_COMHELP_HEADER_NUMPREFIXES_TEXT "\")>",						CMAINLOGIC_NUMNAME_HEXADECIMAL },
-		{ COM_SET_NUMBERPREFIX,	"set_numberprefix", "Changes the prefix of a number format to your preferred string",	"<Number format label (see below \"" CMAINLOGIC_COMHELP_HEADER_NUMPREFIXES_TEXT "\")> <string>",			CMAINLOGIC_NUMNAME_OCTAL " 0w" },
-		{ COM_SET_OPERATOR,		"set_operator",		"Changes an operator to your preferred string",						"<Operator label (see below \"" CMAINLOGIC_COMHELP_HEADER_OPERATORS_TEXT "\"> <string>",					CMAINLOGIC_OPNAME_EXPONENTIAL " ^" },
-		{ COM_SET_RESULTORDER,	"set_resultorder",	"Sets the order of results (not listed = not visible)",				"<One or more number format short name (see below \"" CMAINLOGIC_COMHELP_HEADER_NUMSHORTNAMES_TEXT "\")>",	CSAVEFILE_NUMSHORTNAME_DECIMAL CSAVEFILE_NUMSHORTNAME_HEXADECIMAL CSAVEFILE_NUMSHORTNAME_BINARY },
-		{ COM_SET_AUTOSAVE,		"set_autosave",		"Enables or disables auto saving of settings",						"<1/0>",																									"0" },
-		{ COM_SAVE,				"save",				"Saves the current settings",										"",																											"" },
-		{ COM_RESETSETTINGS,	"reset_settings",	"Resets the settings to their defaults",							"",																											"" },
-		{ COM_CLEARSCREEN,		"clear",			"Clears the screen",												"",																											"" },
-		{ COM_EXIT,				"exit",				"Exits the program",												"",																											"" },
+		{ COM_HELP,				"help",					"Lists this help",															"",																											"" },
+		{ COM_SET_INPUTFORMAT,	"set_inputformat",		"Sets the default number input format (when no prefix is stated)",			"<Number format label (see below \"" CMAINLOGIC_COMHELP_HEADER_NUMPREFIXES_TEXT "\")>",						CMAINLOGIC_NUMNAME_HEXADECIMAL },
+		{ COM_SET_NUMBERPREFIX,	"set_numberprefix",		"Changes the prefix of a number format to your preferred string",			"<Number format label (see below \"" CMAINLOGIC_COMHELP_HEADER_NUMPREFIXES_TEXT "\")> <string>",			CMAINLOGIC_NUMNAME_OCTAL " 0w" },
+		{ COM_SET_OPERATOR,		"set_operator",			"Changes an operator to your preferred string",								"<Operator label (see below \"" CMAINLOGIC_COMHELP_HEADER_OPERATORS_TEXT "\")> <string>",					CMAINLOGIC_OPNAME_EXPONENTIAL " ^" },
+		{ COM_SET_RESULTORDER,	"set_resultorder",		"Sets the order of results (not listed = not visible)",						"<One or more number format short names (see below \"" CMAINLOGIC_COMHELP_HEADER_NUMPREFIXES_TEXT "\")>",	CMAINLOGIC_NUMSHORTNAME_DECIMAL CMAINLOGIC_NUMSHORTNAME_HEXADECIMAL CMAINLOGIC_NUMSHORTNAME_BINARY },
+		{ COM_SET_RESPREFIXVIS,	"set_resultprefixvis",	"Sets the visibility of prefixes on results (not listed = not visible)",	"<One or more number format short names (see below \"" CMAINLOGIC_COMHELP_HEADER_NUMPREFIXES_TEXT "\")>",	CMAINLOGIC_NUMSHORTNAME_DECIMAL CMAINLOGIC_NUMSHORTNAME_BINARY },
+		{ COM_SET_AUTOSAVE,		"set_autosave",			"Enables or disables auto saving of settings",								"<on/off>",																									"off" },
+		{ COM_SAVE,				"save",					"Saves the current settings",												"",																											"" },
+		{ COM_RESETSETTINGS,	"reset_settings",		"Resets the settings to their defaults",									"",																											"" },
+		{ COM_CLEARSCREEN,		"clear",				"Clears the screen",														"",																											"" },
+		{ COM_EXIT,				"exit",					"Exits the program",														"",																											"" },
 	};
 	S_NUMBER m_asNumbers[AMOUNT_NUMBERTYPES] =
 	{
-		{ NUT_INVALID,		 "", "invalid",							0 },
-		{ NUT_BINARY,		 "", CMAINLOGIC_NUMNAME_BINARY,			2 },
-		{ NUT_DUAL,			 "", CMAINLOGIC_NUMNAME_DUAL,			4 },
-		{ NUT_OCTAL,		 "", CMAINLOGIC_NUMNAME_OCTAL,			8 },
-		{ NUT_DECIMAL,		 "", CMAINLOGIC_NUMNAME_DECIMAL,		10 },
-		{ NUT_HEXADECIMAL,	 "", CMAINLOGIC_NUMNAME_HEXADECIMAL,	16 },
+		{ NUT_INVALID,		 "", "invalid",							"",										0},
+		{ NUT_BINARY,		 "", CMAINLOGIC_NUMNAME_BINARY,			CMAINLOGIC_NUMSHORTNAME_BINARY,			2 },
+		{ NUT_DUAL,			 "", CMAINLOGIC_NUMNAME_DUAL,			CMAINLOGIC_NUMSHORTNAME_DUAL,			4 },
+		{ NUT_OCTAL,		 "", CMAINLOGIC_NUMNAME_OCTAL,			CMAINLOGIC_NUMSHORTNAME_OCTAL,			8 },
+		{ NUT_DECIMAL,		 "", CMAINLOGIC_NUMNAME_DECIMAL,		CMAINLOGIC_NUMSHORTNAME_DECIMAL,		10 },
+		{ NUT_HEXADECIMAL,	 "", CMAINLOGIC_NUMNAME_HEXADECIMAL,	CMAINLOGIC_NUMSHORTNAME_HEXADECIMAL,	16 },
 	};
 	S_OPERATOR m_asOperators[AMOUNT_OPERATORS] =
 	{
