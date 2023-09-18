@@ -10,19 +10,19 @@
 #include "core.h"
 #include "log.h"
 
-CMainLogic::CMainLogic(bool StartFullscreen, char *pSaveFilePath)
+CMainLogic::CMainLogic(bool StartMaximized, char *pSaveFilePath)
 {
 	int retval = 0;
 
 	// default initialize members
 	m_ExitApplication = false;
-	m_DefaultNumberType = NUT_DECIMAL;
+	m_DefaultInputType = INT_DECIMAL;
 	m_AutoSave = false;
 	memset(m_aResultOrder, 0, ARRAYSIZE(m_aResultOrder));
 	memset(m_aResultPrefixVis, 0, ARRAYSIZE(m_aResultPrefixVis));
 
-	m_StartFullscreen = StartFullscreen;
-	if (m_StartFullscreen)
+	m_StartMaximized = StartMaximized;
+	if (m_StartMaximized)
 		ShowWindow(GetConsoleWindow(), SW_MAXIMIZE);
 
 	m_pSaveFile = new CSaveFile(this, pSaveFilePath);
@@ -225,10 +225,10 @@ int CMainLogic::EvaluateTokens(S_INPUTTOKENS *psInputTokens)
 			break;
 
 		// determine token type
-		// check for numbers
-		if (ExtractNumberFromToken(psInputTokens->m_aInputTokens[i], &asToken[i].m_Number) == OK)
+		// check for inputs
+		if (ExtractInputFromToken(psInputTokens->m_aInputTokens[i], &asToken[i].m_Number, NULL) == OK)
 		{
-			asToken[i].m_TokType = TOT_NUMBER;
+			asToken[i].m_TokType = TOT_INPUT;
 		}// check for operators
 		else if ((asToken[i].m_OpType = GetOperatorFromToken(psInputTokens->m_aInputTokens[i])->m_OpType) != (E_OPTYPES)-1)
 		{
@@ -242,17 +242,12 @@ int CMainLogic::EvaluateTokens(S_INPUTTOKENS *psInputTokens)
 		// check token validity and fill rest of token data
 		if (asToken[i].m_TokType == (E_TOKTYPES)-1)
 		{
-			m_Log.LogErr("%d. token '%s' is an invalid token (expected %s number format)", i + 1, psInputTokens->m_aInputTokens[i], GetNumberFromType(m_DefaultNumberType)->m_aName);
+			m_Log.LogErr("%d. token '%s' is an invalid token (expected %s input format)", i + 1, psInputTokens->m_aInputTokens[i], GetInputFromType(m_DefaultInputType)->m_aName);
 			return ERROR;
 		}
 
 		strncpy(asToken[i].m_aToken, psInputTokens->m_aInputTokens[i], ARRAYSIZE(psInputTokens->m_aInputTokens[0]));
 		amountTokens++;
-
-		//if (asToken[i].m_TokType == TOT_NUMBER)
-		//	m_Log.Log("--> %llu", asToken[i].number);
-		//else
-		//	m_Log.Log("--> %s", asToken[i].aToken);
 	}
 
 	// evaluate syntax
@@ -288,8 +283,8 @@ int CMainLogic::ExecuteCommand(S_COMMAND *psCommand, S_INPUTTOKENS *psInputToken
 		doAutoSave = true;
 		break;
 
-	case COM_SET_NUMBERPREFIX:
-		retvalCom = ComSetnumberprefix(psInputTokens->m_aInputTokens[1], psInputTokens->m_aInputTokens[2]);
+	case COM_SET_INPUTPREFIX:
+		retvalCom = ComSetinputprefix(psInputTokens->m_aInputTokens[1], psInputTokens->m_aInputTokens[2]);
 		doAutoSave = true;
 		break;
 
@@ -368,11 +363,11 @@ int CMainLogic::ExecuteCommand(S_COMMAND *psCommand, S_INPUTTOKENS *psInputToken
 	return OK;
 }
 
-int CMainLogic::ExtractNumberFromToken(const char* paToken, U64 *pNumber)
+int CMainLogic::ExtractInputFromToken(const char* paToken, U64 *pNumber, char *pCharacter)
 {
 	int retval = 0;
-	E_NUMTYPES numType = NUT_INVALID;
-	char aPrefix[CMAINLOGIC_CONSOLE_NUMBER_PREFIX_LENGTH + 1] = { 0 };
+	E_INPTYPES inpType = INT_INVALID;
+	char aPrefix[CMAINLOGIC_CONSOLE_INPUT_PREFIX_LENGTH + 1] = { 0 };
 	char aContent[CMAINLOGIC_CONSOLE_TOKEN_SIZE] = { 0 };
 	bool hasPrefix = true;
 	const char* pConvertableInput = aContent;
@@ -380,41 +375,41 @@ int CMainLogic::ExtractNumberFromToken(const char* paToken, U64 *pNumber)
 	if (!pNumber)
 		return ERROR;
 	
-	// check the number type
+	// check the input type
 	// copy prefix
 	strncpy(aPrefix, paToken, ARRAYSIZE(aPrefix));
 	aPrefix[ARRAYSIZE(aPrefix) -1] = '\0';
 
 	// copy content
-	strncpy(aContent, paToken + CMAINLOGIC_CONSOLE_NUMBER_PREFIX_LENGTH, ARRAYSIZE(aContent));
+	strncpy(aContent, paToken + CMAINLOGIC_CONSOLE_INPUT_PREFIX_LENGTH, ARRAYSIZE(aContent));
 
-	numType = NUT_INVALID;
+	inpType = INT_INVALID;
 
-	numType = GetNumberFromPrefix(aPrefix)->m_NumType;
+	inpType = GetInputFromPrefix(aPrefix)->m_InpType;
 
 	// no prefix given
-	if (numType == NUT_INVALID)
+	if (inpType == INT_INVALID)
 	{
 		hasPrefix = false;
 		pConvertableInput = paToken;// if no prefix is given, the convertable input is the token instead of the content which is missing some characters
 
 		// check if non-prefixed input is matching the format of the default type
-		numType = GetNumberFromType(m_DefaultNumberType)->m_NumType;
+		inpType = GetInputFromType(m_DefaultInputType)->m_InpType;
 	}
 
 	// type still cannot be determined, return
-	if (numType == NUT_INVALID)
+	if (inpType == INT_INVALID)
 		return ERROR;
 
-	// check the number format (only necessary if the input is prefixed, since non-prefixed input has already been checked... see above)
+	// check the input format (only necessary if the input is prefixed, since non-prefixed input has already been checked... see above)
 	if (hasPrefix)
 	{
-		if (!CheckStringFormat(pConvertableInput, m_asNumbers[numType].m_NumType))
+		if (!CheckStringFormat(pConvertableInput, m_asInputs[inpType].m_InpType))
 			return ERROR;
 	}
 
-	// convert input to number
-	*pNumber = strtoull(pConvertableInput, NULL, m_asNumbers[numType].m_Radix);
+	// convert token to input
+	*pNumber = strtoull(pConvertableInput, NULL, m_asInputs[inpType].m_Radix);
 
 	return OK;
 }
@@ -442,11 +437,11 @@ int CMainLogic::CheckSyntax(S_TOKEN* pasToken, size_t AmountTokens)
 		if (psCurrent->m_TokType == TOT_OPERATOR)
 		{
 			// first operator must not be combining
-			// however some combining operators double as number-modifying, keep that in mind
+			// however some combining operators double as input-modifying, keep that in mind
 			if (!psPrevious)
 			{
 				if ((GetOperatorFlags(psCurrent->m_OpType, OPFLAG_COMBINE) > 0) &&
-					(GetOperatorFlags(psCurrent->m_OpType, OPFLAG_MODIFYNUM) == 0))
+					(GetOperatorFlags(psCurrent->m_OpType, OPFLAG_MODIFYINP) == 0))
 				{
 					m_Log.LogErr("%d. token '%s', first token must not be a combining operator", i + 1, psCurrent->m_aToken);
 					return ERROR;
@@ -454,17 +449,17 @@ int CMainLogic::CheckSyntax(S_TOKEN* pasToken, size_t AmountTokens)
 			}
 			else// 2nd+ operators
 			{
-				// if previous operator was combining or modifies a number, the next token has to be a number
-				if ((GetOperatorFlags(psCurrent->m_OpType, prevOpFlags) & (OPFLAG_COMBINE || OPFLAG_MODIFYNUM)) > 0)
+				// if previous operator was combining or modifies a input, the next token has to be an input
+				if ((GetOperatorFlags(psCurrent->m_OpType, prevOpFlags) & (OPFLAG_COMBINE || OPFLAG_MODIFYINP)) > 0)
 				{
-					m_Log.LogErr("%d. token '%s', number-combining or number-modifying operator must be followed by a number", i + 1, psCurrent->m_aToken);
+					m_Log.LogErr("%d. token '%s', input-combining or input-modifying operator must be followed by an input", i + 1, psCurrent->m_aToken);
 					return ERROR;
 				}
 
 				// last token must not be an operator
 				if (i >= AmountTokens - 1)
 				{
-					m_Log.LogErr("%d. token '%s', last token must not be a number-combining or number-modifying operator", i + 1, psCurrent->m_aToken);
+					m_Log.LogErr("%d. token '%s', last token must not be a input-combining or input-modifying operator", i + 1, psCurrent->m_aToken);
 					return ERROR;
 				}
 			}
@@ -472,19 +467,19 @@ int CMainLogic::CheckSyntax(S_TOKEN* pasToken, size_t AmountTokens)
 			// prepare next loop
 			prevOpFlags = GetOperatorFlags(psCurrent->m_OpType, OPFLAG_ALL);
 		}
-		else if (psCurrent->m_TokType == TOT_NUMBER)// check tokens who are numbers
+		else if (psCurrent->m_TokType == TOT_INPUT)// check tokens who are inputs
 		{
-			// first number
+			// first input
 			if (!psPrevious)
 			{
 				// everything allowed
 			}
-			else// 2nd+ number
+			else// 2nd+ input
 			{
-				// if previous token is a number, error
-				if (psPrevious->m_TokType == TOT_NUMBER)
+				// if previous token is an input, error
+				if (psPrevious->m_TokType == TOT_INPUT)
 				{
-					m_Log.LogErr("%d. token '%s', number must not be followed by another number", i + 1, psCurrent->m_aToken);
+					m_Log.LogErr("%d. token '%s', input must not be followed by another input", i + 1, psCurrent->m_aToken);
 					return ERROR;
 				}
 			}
@@ -507,9 +502,9 @@ U64 CMainLogic::Calculate(S_TOKEN* pasToken, size_t AmountTokens)
 	S_TOKEN sTempToken;
 	bool anyCalculationsLeft = true;
 	U64 result = 0;
-	int firstNumIndex = 0;
+	int firstInpIndex = 0;
 	int firstOperatorIndex = 0;
-	int secondNumIndex = 0;
+	int secondInpIndex = 0;
 	int secondOperatorIndex = 0;
 	int amountCurrentTokens = AmountTokens;
 	U64 tempResult = 0;
@@ -525,37 +520,37 @@ U64 CMainLogic::Calculate(S_TOKEN* pasToken, size_t AmountTokens)
 	// calculation loop, simple from left to right
 	while (1)
 	{
-		// repeat calculation until only one number is left
+		// repeat calculation until only one input is left
 		for (int i = 0; i < amountCurrentTokens; ++i)
 		{
 			// reset values
 			memset(asTempCalculation, 0, ARRAYSIZE(asTempCalculation) * sizeof(S_TOKEN));
-			firstNumIndex = -1;
+			firstInpIndex = -1;
 			firstOperatorIndex = -1;
-			secondNumIndex = -1;
+			secondInpIndex = -1;
 			secondOperatorIndex = -1;
 			amountTokensDisposed = 0;
 
-			// determine number and operator indices
+			// determine input and operator indices
 			for (int index = 0; index < amountCurrentTokens; ++index)
 			{
-				// determine first num index if not yet found
-				if (firstNumIndex < 0)
+				// determine first input index if not yet found
+				if (firstInpIndex < 0)
 				{
-					if (asCalculation[index].m_TokType == TOT_NUMBER)
+					if (asCalculation[index].m_TokType == TOT_INPUT)
 					{
-						firstNumIndex = index;
+						firstInpIndex = index;
 
 						// see if an operator is put in front
 						if (index > 0)
 							firstOperatorIndex = index - 1;
 					}
 				}
-				else if (secondNumIndex < 0)// determine second num index if not yet found
+				else if (secondInpIndex < 0)// determine second input index if not yet found
 				{
-					if (index != firstNumIndex && asCalculation[index].m_TokType == TOT_NUMBER)
+					if (index != firstInpIndex && asCalculation[index].m_TokType == TOT_INPUT)
 					{
-						secondNumIndex = index;
+						secondInpIndex = index;
 
 						// determine second operator index
 						secondOperatorIndex = index - 1;
@@ -567,31 +562,31 @@ U64 CMainLogic::Calculate(S_TOKEN* pasToken, size_t AmountTokens)
 				}
 			}
 
-			if (firstNumIndex >= 0)
+			if (firstInpIndex >= 0)
 				amountTokensDisposed++;
 
 			if (firstOperatorIndex >= 0)
 				amountTokensDisposed++;
 
-			if (secondNumIndex >= 0)
+			if (secondInpIndex >= 0)
 				amountTokensDisposed++;
 
 			if (secondOperatorIndex >= 0)
 				amountTokensDisposed++;
 
-			//m_Log.Log("Disposed %d, %d, %d, %d, %d", amountTokensDisposed, firstNumIndex, firstOperatorIndex, secondNumIndex, secondOperatorIndex);
+			//m_Log.Log("Disposed %d, %d, %d, %d, %d", amountTokensDisposed, firstInpIndex, firstOperatorIndex, secondInpIndex, secondOperatorIndex);
 
-			tempResult = asCalculation[firstNumIndex].m_Number;
+			tempResult = asCalculation[firstInpIndex].m_Number;
 
-			// calculate if two nums have been found, otherwise the result has been seen
-			if (secondNumIndex < 0)
+			// calculate if two inputs have been found, otherwise the result has been seen
+			if (secondInpIndex < 0)
 			{
 				anyCalculationsLeft = false;
 			}
 			else// calculate
 			{
-				U64 firstNum = asCalculation[firstNumIndex].m_Number;
-				U64 secondNum = asCalculation[secondNumIndex].m_Number;
+				U64 firstInp = asCalculation[firstInpIndex].m_Number;
+				U64 secondInp = asCalculation[secondInpIndex].m_Number;
 				E_OPTYPES firstOperatorType = (E_OPTYPES)-1;
 				E_OPTYPES secondOperatorType = (E_OPTYPES)-1;
 
@@ -601,40 +596,40 @@ U64 CMainLogic::Calculate(S_TOKEN* pasToken, size_t AmountTokens)
 
 				secondOperatorType = asCalculation[secondOperatorIndex].m_OpType;
 
-				// modify numbers
-				firstNum = ModifyNumberByOperator(firstNum, firstOperatorType);
-				//secondNum = ModifyNumberByOperator(secondNum, secondOperatorType);
+				// modify inputs
+				firstInp = ModifyInputByOperator(firstInp, 0, firstOperatorType);
+				//secondInp = ModifyInputByOperator(secondInp, 0, secondOperatorType);
 
 				// calculate
 
 				switch (secondOperatorType)
 				{
 				case OPT_ADD:
-					tempResult = firstNum + secondNum;
+					tempResult = firstInp + secondInp;
 					break;
 
 				case OPT_SUBTRACT:
-					tempResult = firstNum - secondNum;
+					tempResult = firstInp - secondInp;
 					break;
 
 				case OPT_AND:
-					tempResult = firstNum & secondNum;
+					tempResult = firstInp & secondInp;
 					break;
 
 				case OPT_OR:
-					tempResult = firstNum | secondNum;
+					tempResult = firstInp | secondInp;
 					break;
 
 				case OPT_XOR:
-					tempResult = firstNum ^ secondNum;
+					tempResult = firstInp ^ secondInp;
 					break;
 
 				case OPT_INVERT:
-					tempResult = firstNum + secondNum;
+					tempResult = firstInp + secondInp;
 					break;
 
 				//case OPT_REVERT:
-				//	tempResult = firstNum + secondNum;
+				//	tempResult = firstInp + secondInp;
 				//	break;
 				}
 
@@ -646,7 +641,7 @@ U64 CMainLogic::Calculate(S_TOKEN* pasToken, size_t AmountTokens)
 		memset(&sTempToken, 0, sizeof(sTempToken));
 
 		sTempToken.m_Number = tempResult;
-		sTempToken.m_TokType = TOT_NUMBER;
+		sTempToken.m_TokType = TOT_INPUT;
 
 		// crop calculation
 		asTempCalculation[0] = sTempToken;
@@ -675,22 +670,22 @@ U64 CMainLogic::Calculate(S_TOKEN* pasToken, size_t AmountTokens)
 
 void CMainLogic::PrintResult(U64 Result)
 {
-	char aNumBin[64 + 1] = { 0 };
-	char aNumDua[32 + 1] = { 0 };
-	char aNumOct[22 + 1] = { 0 };
-	char aNumDec[20 + 1] = { 0 };
-	char aNumHex[16 + 1] = { 0 };
+	char aInpBin[64 + 1] = { 0 };
+	char aInpDua[32 + 1] = { 0 };
+	char aInpOct[22 + 1] = { 0 };
+	char aInpDec[20 + 1] = { 0 };
+	char aInpHex[16 + 1] = { 0 };
+	char aInpAsc[1 + 1] = { 0 };
 	char* pPrefix = 0;
-	char* paNum = 0;
+	char* paInp = 0;
 	bool prefixVisible = false;
 
-	NumToString(Result, NUT_BINARY, aNumBin, ARRAYSIZE(aNumBin));
-	NumToString(Result, NUT_DUAL, aNumDua, ARRAYSIZE(aNumDua));
-	NumToString(Result, NUT_OCTAL, aNumOct, ARRAYSIZE(aNumOct));
-	NumToString(Result, NUT_DECIMAL, aNumDec, ARRAYSIZE(aNumDec));
-	NumToString(Result, NUT_HEXADECIMAL, aNumHex, ARRAYSIZE(aNumHex));
-
-	//m_Log.Log("| %s | 0x%s | 0b%s | 0d%s | 0o%s |", aNumDec, aNumHex, aNumBin, aNumDua, aNumOct);
+	InputToString(Result, 0, INT_BINARY, aInpBin, ARRAYSIZE(aInpBin));
+	InputToString(Result, 0, INT_DUAL, aInpDua, ARRAYSIZE(aInpDua));
+	InputToString(Result, 0, INT_OCTAL, aInpOct, ARRAYSIZE(aInpOct));
+	InputToString(Result, 0, INT_DECIMAL, aInpDec, ARRAYSIZE(aInpDec));
+	InputToString(Result, 0, INT_HEXADECIMAL, aInpHex, ARRAYSIZE(aInpHex));
+	InputToString(Result, 0, INT_ASCII, aInpAsc, ARRAYSIZE(aInpAsc));
 
 	for (int i = 0; i < strlen(m_aResultOrder); ++i)
 	{
@@ -708,32 +703,37 @@ void CMainLogic::PrintResult(U64 Result)
 			}
 		}
 
-		// get number
+		// get input
 		switch (m_aResultOrder[i])
 		{
-		case CMAINLOGIC_NUMSHORTNAME_BINARY[0]:
-			pPrefix = m_asNumbers[NUT_BINARY].m_aPrefix;
-			paNum = aNumBin;
+		case CMAINLOGIC_INPSHORTNAME_BINARY[0]:
+			pPrefix = m_asInputs[INT_BINARY].m_aPrefix;
+			paInp = aInpBin;
 			break;
 
-		case CMAINLOGIC_NUMSHORTNAME_DUAL[0]:
-			pPrefix = m_asNumbers[NUT_DUAL].m_aPrefix;
-			paNum = aNumDua;
+		case CMAINLOGIC_INPSHORTNAME_DUAL[0]:
+			pPrefix = m_asInputs[INT_DUAL].m_aPrefix;
+			paInp = aInpDua;
 			break;
 
-		case CMAINLOGIC_NUMSHORTNAME_OCTAL[0]:
-			pPrefix = m_asNumbers[NUT_OCTAL].m_aPrefix;
-			paNum = aNumOct;
+		case CMAINLOGIC_INPSHORTNAME_OCTAL[0]:
+			pPrefix = m_asInputs[INT_OCTAL].m_aPrefix;
+			paInp = aInpOct;
 			break;
 
-		case CMAINLOGIC_NUMSHORTNAME_DECIMAL[0]:
-			pPrefix = m_asNumbers[NUT_DECIMAL].m_aPrefix;
-			paNum = aNumDec;
+		case CMAINLOGIC_INPSHORTNAME_DECIMAL[0]:
+			pPrefix = m_asInputs[INT_DECIMAL].m_aPrefix;
+			paInp = aInpDec;
 			break;
 
-		case CMAINLOGIC_NUMSHORTNAME_HEXADECIMAL[0]:
-			pPrefix = m_asNumbers[NUT_HEXADECIMAL].m_aPrefix;
-			paNum = aNumHex;
+		case CMAINLOGIC_INPSHORTNAME_HEXADECIMAL[0]:
+			pPrefix = m_asInputs[INT_HEXADECIMAL].m_aPrefix;
+			paInp = aInpHex;
+			break;
+
+		case CMAINLOGIC_INPSHORTNAME_ASCII[0]:
+			pPrefix = m_asInputs[INT_ASCII].m_aPrefix;
+			paInp = aInpAsc;
 			break;
 
 		default:
@@ -741,13 +741,13 @@ void CMainLogic::PrintResult(U64 Result)
 			return;
 		}
 
-		m_Log.LogCustom("", "", " %s%s ", prefixVisible ? pPrefix : "", paNum);
+		m_Log.LogCustom("", "", " %s%s ", prefixVisible ? pPrefix : "", paInp);
 	}
 
 	m_Log.LogCustom("", "", "|\n");
 }
 
-U64 CMainLogic::ModifyNumberByOperator(U64 Number, E_OPTYPES OpType)
+U64 CMainLogic::ModifyInputByOperator(U64 Number, char Character, E_OPTYPES OpType)
 {
 	U64 result = Number;
 
@@ -779,13 +779,13 @@ int CMainLogic::GetOperatorFlags(E_OPTYPES OpType, int OpFlags)
 	return 0;
 }
 
-bool CMainLogic::CheckNumberPrefixCollisions(const char* pString, S_NUMBER** ppsNumberColliding)
+bool CMainLogic::CheckInputPrefixCollisions(const char* pString, S_INPUT** ppsInputColliding)
 {
-	for (int i = 0; i < ARRAYSIZE(m_asNumbers); ++i)
+	for (int i = 0; i < ARRAYSIZE(m_asInputs); ++i)
 	{
-		if (CCore::StringCompareNocase(pString, m_asNumbers[i].m_aPrefix, CMAINLOGIC_CONSOLE_TOKEN_SIZE) == 0)
+		if (CCore::StringCompareNocase(pString, m_asInputs[i].m_aPrefix, CMAINLOGIC_CONSOLE_TOKEN_SIZE) == 0)
 		{
-			*ppsNumberColliding = &m_asNumbers[i];
+			*ppsInputColliding = &m_asInputs[i];
 			return true;
 		}
 	}
@@ -840,91 +840,97 @@ CMainLogic::S_OPERATOR* CMainLogic::GetOperatorFromToken(const char* paToken)
 	return &m_asOperators[OPT_INVALID];
 }
 
-CMainLogic::S_NUMBER* CMainLogic::GetNumberFromType(E_NUMTYPES NumType)
+CMainLogic::S_INPUT* CMainLogic::GetInputFromType(E_INPTYPES InpType)
 {
-	for (int i = 0; i < ARRAYSIZE(m_asNumbers); ++i)
+	for (int i = 0; i < ARRAYSIZE(m_asInputs); ++i)
 	{
-		if (NumType == m_asNumbers[i].m_NumType)
-			return &m_asNumbers[i];
+		if (InpType == m_asInputs[i].m_InpType)
+			return &m_asInputs[i];
 	}
 
-	return &m_asNumbers[NUT_INVALID];
+	return &m_asInputs[INT_INVALID];
 }
 
-CMainLogic::S_NUMBER* CMainLogic::GetNumberFromType(const char *pType)
+CMainLogic::S_INPUT* CMainLogic::GetInputFromType(const char *pType)
 {
-	for (int i = 0; i < ARRAYSIZE(m_asNumbers); ++i)
+	for (int i = 0; i < ARRAYSIZE(m_asInputs); ++i)
 	{
-		if (CCore::StringCompareNocase(pType, m_asNumbers[i].m_aName, CMAINLOGIC_CONSOLE_TOKEN_SIZE) == 0)
-			return &m_asNumbers[i];
+		if (CCore::StringCompareNocase(pType, m_asInputs[i].m_aName, CMAINLOGIC_CONSOLE_TOKEN_SIZE) == 0)
+			return &m_asInputs[i];
 	}
 
-	return &m_asNumbers[NUT_INVALID];
+	return &m_asInputs[INT_INVALID];
 }
 
 
-CMainLogic::S_NUMBER* CMainLogic::GetNumberFromPrefix(const char *pPrefix)
+CMainLogic::S_INPUT* CMainLogic::GetInputFromPrefix(const char *pPrefix)
 {
-	for (int i = 0; i < ARRAYSIZE(m_asNumbers); ++i)
+	for (int i = 0; i < ARRAYSIZE(m_asInputs); ++i)
 	{
-		if (CCore::StringCompareNocase(pPrefix, m_asNumbers[i].m_aPrefix, CMAINLOGIC_CONSOLE_TOKEN_SIZE) == 0)
-			return &m_asNumbers[i];
+		if (CCore::StringCompareNocase(pPrefix, m_asInputs[i].m_aPrefix, CMAINLOGIC_CONSOLE_TOKEN_SIZE) == 0)
+			return &m_asInputs[i];
 	}
 
-	return &m_asNumbers[NUT_INVALID];
+	return &m_asInputs[INT_INVALID];
 }
 
-bool CMainLogic::CheckStringFormat(const char* pNumber, E_NUMTYPES NumType)
+bool CMainLogic::CheckStringFormat(const char* pInput, E_INPTYPES InpType)
 {
-	switch (NumType)
+	switch (InpType)
 	{
-	case NUT_BINARY:
-		for (; *pNumber; ++pNumber)
+	case INT_BINARY:
+		for (; *pInput; ++pInput)
 		{
-			if (*pNumber < '0' || *pNumber > '1')
+			if (*pInput < '0' || *pInput > '1')
 				return false;
 		}
 		break;
 
-	case NUT_DUAL:
-		for (; *pNumber; ++pNumber)
+	case INT_DUAL:
+		for (; *pInput; ++pInput)
 		{
-			if (*pNumber < '0' || *pNumber > '3')
+			if (*pInput < '0' || *pInput > '3')
 				return false;
 		}
 		break;
 
-	case NUT_OCTAL:
-		for (; *pNumber; ++pNumber)
+	case INT_OCTAL:
+		for (; *pInput; ++pInput)
 		{
-			if (*pNumber < '0' || *pNumber > '7')
+			if (*pInput < '0' || *pInput > '7')
 				return false;
 		}
 		break;
 
-	case NUT_DECIMAL:
-		for (; *pNumber; ++pNumber)
+	case INT_DECIMAL:
+		for (; *pInput; ++pInput)
 		{
-			if (*pNumber < '0' || *pNumber > '9')
+			if (*pInput < '0' || *pInput > '9')
 				return false;
 		}
 		break;
 
-	case NUT_HEXADECIMAL:
-		for (; *pNumber; ++pNumber)
+	case INT_HEXADECIMAL:
+		for (; *pInput; ++pInput)
 		{
-			if (!((*pNumber >= '0' && *pNumber <= '9') ||
-				(*pNumber >= 'A' && *pNumber <= 'F') ||
-				(*pNumber >= 'a' && *pNumber <= 'f')))
+			if (!((*pInput >= '0' && *pInput <= '9') ||
+				(*pInput >= 'A' && *pInput <= 'F') ||
+				(*pInput >= 'a' && *pInput <= 'f')))
 				return false;
 		}
+		break;
+
+	case INT_ASCII:
+		// any character allowed, but only one in total
+		if (pInput[1] != '\0')
+			return false;
 		break;
 	}
 
 	return true;
 }
 
-int CMainLogic::NumToString(U64 Number, E_NUMTYPES NumType, char* pResult, size_t LenResult)
+int CMainLogic::InputToString(U64 Number, char Character, E_INPTYPES InpType, char* pResult, size_t LenResult)
 {
 	int i = 0;
 	int mask = 0;
@@ -933,29 +939,33 @@ int CMainLogic::NumToString(U64 Number, E_NUMTYPES NumType, char* pResult, size_
 	char aDigit[2] = { 0 };
 	int lastPosRelevant = 0;
 
-	switch (NumType)
+	switch (InpType)
 	{
-	case NUT_BINARY:
+	case INT_BINARY:
 		mask = 0x01;
 		rshift = 1;
 		break;
 
-	case NUT_DUAL:
+	case INT_DUAL:
 		mask = 0x03;
 		rshift = 2;
 		break;
 
-	case NUT_OCTAL:
+	case INT_OCTAL:
 		mask = 0x07;
 		rshift = 3;
 		break;
 
-	case NUT_DECIMAL:
+	case INT_DECIMAL:
 		snprintf(pResult, LenResult, "%llu", Number);
 		return OK;
 
-	case NUT_HEXADECIMAL:
+	case INT_HEXADECIMAL:
 		snprintf(pResult, LenResult, "%llX", Number);
+		return OK;
+
+	case INT_ASCII:
+		snprintf(pResult, LenResult, "%c", Number);
 		return OK;
 
 	default:
@@ -1028,12 +1038,13 @@ int CMainLogic::LoadSaveData()
 		return ERROR;
 
 	// apply
-	// number prefixes
-	strncpy(m_asNumbers[NUT_BINARY].m_aPrefix, m_pSaveFile->m_asSaveKeys[CSaveFile::SK_NUMPREFIX_BINARY].m_aValue, ARRAYSIZE(m_asNumbers[0].m_aPrefix));
-	strncpy(m_asNumbers[NUT_DUAL].m_aPrefix, m_pSaveFile->m_asSaveKeys[CSaveFile::SK_NUMPREFIX_DUAL].m_aValue, ARRAYSIZE(m_asNumbers[0].m_aPrefix));
-	strncpy(m_asNumbers[NUT_OCTAL].m_aPrefix, m_pSaveFile->m_asSaveKeys[CSaveFile::SK_NUMPREFIX_OCTAL].m_aValue, ARRAYSIZE(m_asNumbers[0].m_aPrefix));
-	strncpy(m_asNumbers[NUT_DECIMAL].m_aPrefix, m_pSaveFile->m_asSaveKeys[CSaveFile::SK_NUMPREFIX_DECIMAL].m_aValue, ARRAYSIZE(m_asNumbers[0].m_aPrefix));
-	strncpy(m_asNumbers[NUT_HEXADECIMAL].m_aPrefix, m_pSaveFile->m_asSaveKeys[CSaveFile::SK_NUMPREFIX_HEXADECIMAL].m_aValue, ARRAYSIZE(m_asNumbers[0].m_aPrefix));
+	// input prefixes
+	strncpy(m_asInputs[INT_BINARY].m_aPrefix, m_pSaveFile->m_asSaveKeys[CSaveFile::SK_INPPREFIX_BINARY].m_aValue, ARRAYSIZE(m_asInputs[0].m_aPrefix));
+	strncpy(m_asInputs[INT_DUAL].m_aPrefix, m_pSaveFile->m_asSaveKeys[CSaveFile::SK_INPPREFIX_DUAL].m_aValue, ARRAYSIZE(m_asInputs[0].m_aPrefix));
+	strncpy(m_asInputs[INT_OCTAL].m_aPrefix, m_pSaveFile->m_asSaveKeys[CSaveFile::SK_INPPREFIX_OCTAL].m_aValue, ARRAYSIZE(m_asInputs[0].m_aPrefix));
+	strncpy(m_asInputs[INT_DECIMAL].m_aPrefix, m_pSaveFile->m_asSaveKeys[CSaveFile::SK_INPPREFIX_DECIMAL].m_aValue, ARRAYSIZE(m_asInputs[0].m_aPrefix));
+	strncpy(m_asInputs[INT_HEXADECIMAL].m_aPrefix, m_pSaveFile->m_asSaveKeys[CSaveFile::SK_INPPREFIX_HEXADECIMAL].m_aValue, ARRAYSIZE(m_asInputs[0].m_aPrefix));
+	strncpy(m_asInputs[INT_ASCII].m_aPrefix, m_pSaveFile->m_asSaveKeys[CSaveFile::SK_INPPREFIX_ASCII].m_aValue, ARRAYSIZE(m_asInputs[0].m_aPrefix));
 
 	// operator prefixes
 	strncpy(m_asOperators[OPT_ADD].m_aOperator, m_pSaveFile->m_asSaveKeys[CSaveFile::SK_OPPREFIX_ADD].m_aValue, ARRAYSIZE(m_asOperators[0].m_aOperator));
@@ -1058,14 +1069,11 @@ int CMainLogic::LoadSaveData()
 	// result prefix visibility
 	strncpy(m_aResultPrefixVis, m_pSaveFile->m_asSaveKeys[CSaveFile::SK_RESPREFIXVIS].m_aValue, ARRAYSIZE(m_aResultPrefixVis));
 
-	// fullscreen
-	m_StartFullscreen = atoi(m_pSaveFile->m_asSaveKeys[CSaveFile::SK_STARTFULLSCREEN].m_aValue);
-
 	// auto save
 	m_AutoSave = atoi(m_pSaveFile->m_asSaveKeys[CSaveFile::SK_AUTOSAVE].m_aValue);
 
 	// input format
-	m_DefaultNumberType = (E_NUMTYPES)atoi(m_pSaveFile->m_asSaveKeys[CSaveFile::SK_INPUTFORMAT].m_aValue);
+	m_DefaultInputType = (E_INPTYPES)atoi(m_pSaveFile->m_asSaveKeys[CSaveFile::SK_INPUTFORMAT].m_aValue);
 
 	return OK;
 }
@@ -1075,12 +1083,13 @@ int CMainLogic::SaveSaveData()
 	int retval = 0;
 
 	// write back
-	// number prefixes
-	strncpy(m_pSaveFile->m_asSaveKeys[CSaveFile::SK_NUMPREFIX_BINARY].m_aValue, m_asNumbers[NUT_BINARY].m_aPrefix, ARRAYSIZE(m_pSaveFile->m_asSaveKeys[0].m_aValue));
-	strncpy(m_pSaveFile->m_asSaveKeys[CSaveFile::SK_NUMPREFIX_DUAL].m_aValue, m_asNumbers[NUT_DUAL].m_aPrefix, ARRAYSIZE(m_pSaveFile->m_asSaveKeys[0].m_aValue));
-	strncpy(m_pSaveFile->m_asSaveKeys[CSaveFile::SK_NUMPREFIX_OCTAL].m_aValue, m_asNumbers[NUT_OCTAL].m_aPrefix, ARRAYSIZE(m_pSaveFile->m_asSaveKeys[0].m_aValue));
-	strncpy(m_pSaveFile->m_asSaveKeys[CSaveFile::SK_NUMPREFIX_DECIMAL].m_aValue, m_asNumbers[NUT_DECIMAL].m_aPrefix, ARRAYSIZE(m_pSaveFile->m_asSaveKeys[0].m_aValue));
-	strncpy(m_pSaveFile->m_asSaveKeys[CSaveFile::SK_NUMPREFIX_HEXADECIMAL].m_aValue, m_asNumbers[NUT_HEXADECIMAL].m_aPrefix, ARRAYSIZE(m_pSaveFile->m_asSaveKeys[0].m_aValue));
+	// input prefixes
+	strncpy(m_pSaveFile->m_asSaveKeys[CSaveFile::SK_INPPREFIX_BINARY].m_aValue, m_asInputs[INT_BINARY].m_aPrefix, ARRAYSIZE(m_pSaveFile->m_asSaveKeys[0].m_aValue));
+	strncpy(m_pSaveFile->m_asSaveKeys[CSaveFile::SK_INPPREFIX_DUAL].m_aValue, m_asInputs[INT_DUAL].m_aPrefix, ARRAYSIZE(m_pSaveFile->m_asSaveKeys[0].m_aValue));
+	strncpy(m_pSaveFile->m_asSaveKeys[CSaveFile::SK_INPPREFIX_OCTAL].m_aValue, m_asInputs[INT_OCTAL].m_aPrefix, ARRAYSIZE(m_pSaveFile->m_asSaveKeys[0].m_aValue));
+	strncpy(m_pSaveFile->m_asSaveKeys[CSaveFile::SK_INPPREFIX_DECIMAL].m_aValue, m_asInputs[INT_DECIMAL].m_aPrefix, ARRAYSIZE(m_pSaveFile->m_asSaveKeys[0].m_aValue));
+	strncpy(m_pSaveFile->m_asSaveKeys[CSaveFile::SK_INPPREFIX_HEXADECIMAL].m_aValue, m_asInputs[INT_HEXADECIMAL].m_aPrefix, ARRAYSIZE(m_pSaveFile->m_asSaveKeys[0].m_aValue));
+	strncpy(m_pSaveFile->m_asSaveKeys[CSaveFile::SK_INPPREFIX_ASCII].m_aValue, m_asInputs[INT_ASCII].m_aPrefix, ARRAYSIZE(m_pSaveFile->m_asSaveKeys[0].m_aValue));
 
 	// operator prefixes
 	strncpy(m_pSaveFile->m_asSaveKeys[CSaveFile::SK_OPPREFIX_ADD].m_aValue, m_asOperators[OPT_ADD].m_aOperator, ARRAYSIZE(m_pSaveFile->m_asSaveKeys[0].m_aValue));
@@ -1105,14 +1114,11 @@ int CMainLogic::SaveSaveData()
 	// result prefix visibility
 	strncpy(m_pSaveFile->m_asSaveKeys[CSaveFile::SK_RESPREFIXVIS].m_aValue, m_aResultPrefixVis, ARRAYSIZE(m_pSaveFile->m_asSaveKeys[0].m_aValue));
 
-	// fullscreen
-	snprintf(m_pSaveFile->m_asSaveKeys[CSaveFile::SK_STARTFULLSCREEN].m_aValue, ARRAYSIZE(m_pSaveFile->m_asSaveKeys[0].m_aValue), "%d", m_StartFullscreen);
-
 	// auto save
 	snprintf(m_pSaveFile->m_asSaveKeys[CSaveFile::SK_AUTOSAVE].m_aValue, ARRAYSIZE(m_pSaveFile->m_asSaveKeys[0].m_aValue), "%d", m_AutoSave);
 
 	// input format
-	snprintf(m_pSaveFile->m_asSaveKeys[CSaveFile::SK_INPUTFORMAT].m_aValue, ARRAYSIZE(m_pSaveFile->m_asSaveKeys[0].m_aValue), "%d", m_DefaultNumberType);
+	snprintf(m_pSaveFile->m_asSaveKeys[CSaveFile::SK_INPUTFORMAT].m_aValue, ARRAYSIZE(m_pSaveFile->m_asSaveKeys[0].m_aValue), "%d", m_DefaultInputType);
 
 	// save save file
 	retval = m_pSaveFile->SaveSaveFile();
@@ -1126,7 +1132,7 @@ CMainLogic::E_COMRETVALS CMainLogic::ComHelp(E_COMMANDS ID)
 {
 	char aParameters[CMAINLOGIC_MAX_LEN_COMHELP_BUFFERS] = { 0 };
 	char aExample[CMAINLOGIC_MAX_LEN_COMHELP_BUFFERS] = { 0 };
-	S_NUMBER* psNumber = 0;
+	S_INPUT* psInput = 0;
 	S_OPERATOR* psOperator = 0;
 
 	// print full help
@@ -1135,9 +1141,9 @@ CMainLogic::E_COMRETVALS CMainLogic::ComHelp(E_COMMANDS ID)
 		// HELP
 		m_Log.Log(CMAINLOGIC_COMHELP_HEADER_HELP);
 		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX "Enter a calculation or one of the commands below.");
-		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX "Max. number size is 64 bit.");
+		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX "Max. input size is 64 bit.");
 		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX "All input is case insensitive.");
-		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX "Default input number format (when no prefix is given): %s", GetNumberFromType(m_DefaultNumberType)->m_aName);
+		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX "Default input format (when no prefix is given): %s", GetInputFromType(m_DefaultInputType)->m_aName);
 		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX "Result order: %s", m_aResultOrder);
 		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX "Result prefix visibility: %s", m_aResultPrefixVis);
 		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX "Auto saving: %s", m_AutoSave ? "On" : "Off");
@@ -1166,12 +1172,12 @@ CMainLogic::E_COMRETVALS CMainLogic::ComHelp(E_COMMANDS ID)
 
 		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX);
 
-		// NUMPREFIXES
-		m_Log.Log(CMAINLOGIC_COMHELP_HEADER_NUMPREFIXES);
-		for (int i = (int)NUT_INVALID + 1; i < ARRAYSIZE(m_asNumbers); ++i)
+		// INPPREFIXES
+		m_Log.Log(CMAINLOGIC_COMHELP_HEADER_INPPREFIXES);
+		for (int i = (int)INT_INVALID + 1; i < ARRAYSIZE(m_asInputs); ++i)
 		{
-			psNumber = GetNumberFromType((E_NUMTYPES)i);
-			m_Log.Log(CMAINLOGIC_COMHELP_PREFIX "%s (short %s)... %s",psNumber->m_aName, psNumber->m_aShortName, psNumber->m_aPrefix);
+			psInput = GetInputFromType((E_INPTYPES)i);
+			m_Log.Log(CMAINLOGIC_COMHELP_PREFIX "%s (short %s)... %s", psInput->m_aName, psInput->m_aShortName, psInput->m_aPrefix);
 		}
 		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX);
 
@@ -1225,28 +1231,28 @@ CMainLogic::E_COMRETVALS CMainLogic::ComHelp(E_COMMANDS ID)
 
 CMainLogic::E_COMRETVALS CMainLogic::ComSetinputformat(const char *pType)
 {
-	S_NUMBER* psNumber = 0;
+	S_INPUT* psInput = 0;
 
-	psNumber = GetNumberFromType(pType);
-	if (psNumber->m_NumType == NUT_INVALID)
+	psInput = GetInputFromType(pType);
+	if (psInput->m_InpType == INT_INVALID)
 		return CRV_INVALIDPARAMS;
 
-	m_DefaultNumberType = psNumber->m_NumType;
-	m_Log.Log("Default input format is now %s", psNumber->m_aName);
+	m_DefaultInputType = psInput->m_InpType;
+	m_Log.Log("Default input format is now %s", psInput->m_aName);
 
 	return CRV_OK;
 }
 
-CMainLogic::E_COMRETVALS CMainLogic::ComSetnumberprefix(const char *pType, const char *pNewPrefix)
+CMainLogic::E_COMRETVALS CMainLogic::ComSetinputprefix(const char *pType, const char *pNewPrefix)
 {
-	E_NUMTYPES numberType = NUT_INVALID;
-	S_NUMBER* psNumber = 0;
-	S_NUMBER* psNumberColliding = 0;
+	E_INPTYPES inputType = INT_INVALID;
+	S_INPUT* psInput = 0;
+	S_INPUT* psInputColliding = 0;
 	S_OPERATOR* psOperatorColliding = 0;
 	E_USERANSWERS userAnswer = ANS_INVALID;
 
-	psNumber = GetNumberFromType(pType);
-	if (psNumber->m_NumType == NUT_INVALID)
+	psInput = GetInputFromType(pType);
+	if (psInput->m_InpType == INT_INVALID)
 		return CRV_INVALIDPARAMS;
 
 	// check empty
@@ -1257,16 +1263,16 @@ CMainLogic::E_COMRETVALS CMainLogic::ComSetnumberprefix(const char *pType, const
 	}
 
 	// check length
-	if (strlen(pNewPrefix) > ARRAYSIZE(psNumber->m_aPrefix))
+	if (strlen(pNewPrefix) > ARRAYSIZE(psInput->m_aPrefix))
 	{
-		m_Log.LogErr("Exceeded max. prefix length of %d", ARRAYSIZE(psNumber->m_aPrefix));
+		m_Log.LogErr("Exceeded max. prefix length of %d", ARRAYSIZE(psInput->m_aPrefix));
 		return CRV_ERROR;
 	}
 
-	// check collisions with other number prefixes
-	if (CheckNumberPrefixCollisions(pNewPrefix, &psNumberColliding))
+	// check collisions with other input prefixes
+	if (CheckInputPrefixCollisions(pNewPrefix, &psInputColliding))
 	{
-		userAnswer = GetUserAnswer("New prefix collides with the %s prefix, do you want to proceed", psNumberColliding->m_aName);
+		userAnswer = GetUserAnswer("New prefix collides with the %s prefix, do you want to proceed", psInputColliding->m_aName);
 		if (userAnswer != ANS_YES)
 			return CRV_CANCELLED;
 	}
@@ -1280,9 +1286,9 @@ CMainLogic::E_COMRETVALS CMainLogic::ComSetnumberprefix(const char *pType, const
 	}
 
 	// change operator
-	memset(psNumber->m_aPrefix, 0, ARRAYSIZE(psNumber->m_aPrefix));
-	strncpy(psNumber->m_aPrefix, pNewPrefix, ARRAYSIZE(psNumber->m_aPrefix));
-	m_Log.Log("Number prefix for %s is now '%s'", psNumber->m_aName, psNumber->m_aPrefix);
+	memset(psInput->m_aPrefix, 0, ARRAYSIZE(psInput->m_aPrefix));
+	strncpy(psInput->m_aPrefix, pNewPrefix, ARRAYSIZE(psInput->m_aPrefix));
+	m_Log.Log("Input prefix for %s is now '%s'", psInput->m_aName, psInput->m_aPrefix);
 
 	return CRV_OK;
 }
@@ -1291,12 +1297,12 @@ CMainLogic::E_COMRETVALS CMainLogic::ComSetoperator(const char* pType, const cha
 {
 	E_OPTYPES operatorType = OPT_INVALID;
 	S_OPERATOR* psOperator = 0;
-	S_NUMBER* psNumberColliding = 0;
+	S_INPUT* psInputColliding = 0;
 	S_OPERATOR* psOperatorColliding = 0;
 	E_USERANSWERS userAnswer = ANS_INVALID;
 
 	psOperator = GetOperatorFromType(pType);
-	if (psOperator->m_OpType == NUT_INVALID)
+	if (psOperator->m_OpType == INT_INVALID)
 		return CRV_INVALIDPARAMS;
 
 	// check empty
@@ -1321,10 +1327,10 @@ CMainLogic::E_COMRETVALS CMainLogic::ComSetoperator(const char* pType, const cha
 			return CRV_CANCELLED;
 	}
 
-	// check collisions with other number prefixes
-	if (CheckNumberPrefixCollisions(pNewOperator, &psNumberColliding))
+	// check collisions with other input prefixes
+	if (CheckInputPrefixCollisions(pNewOperator, &psInputColliding))
 	{
-		userAnswer = GetUserAnswer("New operator collides with the %s prefix, do you want to proceed", psNumberColliding->m_aName);
+		userAnswer = GetUserAnswer("New operator collides with the %s prefix, do you want to proceed", psInputColliding->m_aName);
 		if (userAnswer != ANS_YES)
 			return CRV_CANCELLED;
 	}
@@ -1354,9 +1360,9 @@ CMainLogic::E_COMRETVALS CMainLogic::ComSetresultorder(const char* pOrder)
 	{
 		isValid = false;
 
-		for (int s = 0; s < ARRAYSIZE(m_asNumbers); ++s)
+		for (int s = 0; s < ARRAYSIZE(m_asInputs); ++s)
 		{
-			if (CCore::CharCompareNocase(pOrder[i], m_asNumbers[s].m_aShortName[0]) == 0)
+			if (CCore::CharCompareNocase(pOrder[i], m_asInputs[s].m_aShortName[0]) == 0)
 			{
 				isValid = true;
 				break;
@@ -1365,7 +1371,7 @@ CMainLogic::E_COMRETVALS CMainLogic::ComSetresultorder(const char* pOrder)
 
 		if (!isValid)
 		{
-			m_Log.LogErr("'%c' is not a valid number format short name", pOrder[i]);
+			m_Log.LogErr("'%c' is not a valid input format short name", pOrder[i]);
 			return CRV_ERROR;
 		}
 	}
@@ -1394,9 +1400,9 @@ CMainLogic::E_COMRETVALS CMainLogic::ComSetresultprefixvisibility(const char* pV
 	{
 		isValid = false;
 
-		for (int s = 0; s < ARRAYSIZE(m_asNumbers); ++s)
+		for (int s = 0; s < ARRAYSIZE(m_asInputs); ++s)
 		{
-			if (CCore::CharCompareNocase(pVisibility[i], m_asNumbers[s].m_aShortName[0]) == 0)
+			if (CCore::CharCompareNocase(pVisibility[i], m_asInputs[s].m_aShortName[0]) == 0)
 			{
 				isValid = true;
 				break;
@@ -1405,7 +1411,7 @@ CMainLogic::E_COMRETVALS CMainLogic::ComSetresultprefixvisibility(const char* pV
 
 		if (!isValid)
 		{
-			m_Log.LogErr("'%c' is not a valid number format short name", pVisibility[i]);
+			m_Log.LogErr("'%c' is not a valid input format short name", pVisibility[i]);
 			return CRV_ERROR;
 		}
 	}
@@ -1451,6 +1457,8 @@ CMainLogic::E_COMRETVALS CMainLogic::ComSave(const char* pOption)
 	retval = SaveSaveData();
 	if (retval != OK)
 		return CRV_ERROR;
+
+	m_Log.Log("Settings have been saved");
 
 	return CRV_OK;
 }

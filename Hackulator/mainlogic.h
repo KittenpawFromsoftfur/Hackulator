@@ -7,41 +7,43 @@
 #define CMAINLOGIC_MAX_LEN_COMHELP_BUFFERS 256
 #define CMAINLOGIC_COMHELP_HEADER_HELP					"<<<<<<<<<<<<<<<<<<<<<<<<< HELP >>>>>>>>>>>>>>>>>>>>>>>>>"
 #define CMAINLOGIC_COMHELP_HEADER_COMMANDS				"<<<<<<<<<<<<<<<<<<<<<<< COMMANDS >>>>>>>>>>>>>>>>>>>>>>>"
-#define CMAINLOGIC_COMHELP_HEADER_NUMPREFIXES_TEXT		"NUMBER PREFIXES"
-#define CMAINLOGIC_COMHELP_HEADER_NUMPREFIXES			"<<<<<<<<<<<<<<<<<<< " CMAINLOGIC_COMHELP_HEADER_NUMPREFIXES_TEXT " >>>>>>>>>>>>>>>>>>>>"
+#define CMAINLOGIC_COMHELP_HEADER_INPPREFIXES_TEXT		"INPUT PREFIXES"
+#define CMAINLOGIC_COMHELP_HEADER_INPPREFIXES			"<<<<<<<<<<<<<<<<<<<< " CMAINLOGIC_COMHELP_HEADER_INPPREFIXES_TEXT " >>>>>>>>>>>>>>>>>>>>"
 #define CMAINLOGIC_COMHELP_HEADER_OPERATORS_TEXT		"OPERATORS"
 #define CMAINLOGIC_COMHELP_HEADER_OPERATORS				"<<<<<<<<<<<<<<<<<<<<<< " CMAINLOGIC_COMHELP_HEADER_OPERATORS_TEXT " >>>>>>>>>>>>>>>>>>>>>>>"
 #define CMAINLOGIC_COMHELP_TAILER						"<<<<<<<<<<<<<<<<<<<<<<<<<<<<>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
 #define CMAINLOGIC_COMHELP_PREFIX						"> "
 
-// numbers and operators
-#define CMAINLOGIC_NUMPREFIXES_LENGTH 12
-#define CMAINLOGIC_NUMNAMES_LENGTH 32
-#define CMAINLOGIC_NUMSHORTNAMES_LENGTH 2
-#define CMAINLOGIC_OPERATORS_LENGTH CMAINLOGIC_NUMPREFIXES_LENGTH
-#define CMAINLOGIC_OPNAMES_LENGTH CMAINLOGIC_NUMNAMES_LENGTH
+// inputs and operators
+#define CMAINLOGIC_INPPREFIXES_LENGTH 12
+#define CMAINLOGIC_INPNAMES_LENGTH 32
+#define CMAINLOGIC_INPSHORTNAMES_LENGTH 2
+#define CMAINLOGIC_OPERATORS_LENGTH CMAINLOGIC_INPPREFIXES_LENGTH
+#define CMAINLOGIC_OPNAMES_LENGTH CMAINLOGIC_INPNAMES_LENGTH
 #define CMAINLOGIC_RESULTORDER_LEN 24
 
 // input and tokenization
 #define CMAINLOGIC_CONSOLE_BUFFERLEN 256
 #define CMAINLOGIC_CONSOLE_TOKENS (CMAINLOGIC_CONSOLE_BUFFERLEN / 2)
-#define CMAINLOGIC_CONSOLE_TOKEN_SIZE (64 + CMAINLOGIC_NUMPREFIXES_LENGTH)
-#define CMAINLOGIC_CONSOLE_NUMBER_PREFIX_LENGTH 2
+#define CMAINLOGIC_CONSOLE_TOKEN_SIZE (64 + CMAINLOGIC_INPPREFIXES_LENGTH)
+#define CMAINLOGIC_CONSOLE_INPUT_PREFIX_LENGTH 2
 #define CMAINLOGIC_CONSOLE_USERANSWER_BUFFERLEN 12
 
-// number names
-#define CMAINLOGIC_NUMNAME_BINARY		"binary"
-#define CMAINLOGIC_NUMNAME_DUAL			"dual"
-#define CMAINLOGIC_NUMNAME_OCTAL		"octal"
-#define CMAINLOGIC_NUMNAME_DECIMAL		"decimal"
-#define CMAINLOGIC_NUMNAME_HEXADECIMAL	"hexadecimal"
+// input names
+#define CMAINLOGIC_INPNAME_BINARY		"binary"
+#define CMAINLOGIC_INPNAME_DUAL			"dual"
+#define CMAINLOGIC_INPNAME_OCTAL		"octal"
+#define CMAINLOGIC_INPNAME_DECIMAL		"decimal"
+#define CMAINLOGIC_INPNAME_HEXADECIMAL	"hexadecimal"
+#define CMAINLOGIC_INPNAME_ASCII		"ascii"
 
-// number short names
-#define CMAINLOGIC_NUMSHORTNAME_BINARY       "b"
-#define CMAINLOGIC_NUMSHORTNAME_DUAL         "u"
-#define CMAINLOGIC_NUMSHORTNAME_OCTAL        "o"
-#define CMAINLOGIC_NUMSHORTNAME_DECIMAL      "d"
-#define CMAINLOGIC_NUMSHORTNAME_HEXADECIMAL  "x"
+// input short names
+#define CMAINLOGIC_INPSHORTNAME_BINARY		"b"
+#define CMAINLOGIC_INPSHORTNAME_DUAL		"u"
+#define CMAINLOGIC_INPSHORTNAME_OCTAL		"o"
+#define CMAINLOGIC_INPSHORTNAME_DECIMAL		"d"
+#define CMAINLOGIC_INPSHORTNAME_HEXADECIMAL	"x"
+#define CMAINLOGIC_INPSHORTNAME_ASCII		"a"
 
 // operator names
 #define CMAINLOGIC_OPNAME_ADD			"add"
@@ -63,7 +65,7 @@
 // operator flags
 #define OPFLAG_COMBINE (1 << 0)// combining operators such as +, *, &
 #define OPFLAG_LOGICAL (1 << 1)// logical operators such as &, |
-#define OPFLAG_MODIFYNUM (1 << 2)// number modifying operators such as +, ~
+#define OPFLAG_MODIFYINP (1 << 2)// input modifying operators such as +, ~
 #define OPFLAG_ALL 0xFFFFFFFFFFFFFFFF// all flags together
 
 // classes
@@ -73,19 +75,19 @@ class CMainLogic
 {
 public:
 	// enums
-	enum E_NUMTYPES
+	enum E_INPTYPES
 	{
-		NUT_INVALID,// ATTENTION! Invalid must be at first position
-		NUT_BINARY,
-		NUT_DUAL,
-		NUT_OCTAL,
-		NUT_DECIMAL,
-		NUT_HEXADECIMAL,
-		//NUT_ASCII,
-		AMOUNT_NUMBERTYPES,
+		INT_INVALID,// ATTENTION! Invalid must be at first position
+		INT_BINARY,
+		INT_DUAL,
+		INT_OCTAL,
+		INT_DECIMAL,
+		INT_HEXADECIMAL,
+		INT_ASCII,
+		AMOUNT_INPUTTYPES,
 	};
 
-    CMainLogic(bool StartFullscreen, char *pSaveFilePath);
+    CMainLogic(bool StartMaximized, char *pSaveFilePath);
     ~CMainLogic();
     int EntryPoint();
 	void RequestApplicationExit();
@@ -100,7 +102,7 @@ private:
 	{
 		COM_HELP,
 		COM_SET_INPUTFORMAT,
-		COM_SET_NUMBERPREFIX,
+		COM_SET_INPUTPREFIX,
 		COM_SET_OPERATOR,
 		COM_SET_RESULTORDER,
 		COM_SET_RESPREFIXVIS,
@@ -114,7 +116,7 @@ private:
 
 	enum E_TOKTYPES
 	{
-		TOT_NUMBER,
+		TOT_INPUT,
 		TOT_OPERATOR,
 	};
 
@@ -172,20 +174,21 @@ private:
 	typedef struct
 	{
 		E_TOKTYPES m_TokType;
-		E_NUMTYPES m_NumType;
+		E_INPTYPES m_InpType;
 		E_OPTYPES m_OpType;
 		U64 m_Number;
+		char m_Character;
 		char m_aToken[CMAINLOGIC_CONSOLE_TOKEN_SIZE];
 	}S_TOKEN;
 
 	typedef struct
 	{
-		E_NUMTYPES m_NumType;
-		char m_aPrefix[CMAINLOGIC_NUMPREFIXES_LENGTH];
-		char m_aName[CMAINLOGIC_NUMNAMES_LENGTH];
-		char m_aShortName[CMAINLOGIC_NUMSHORTNAMES_LENGTH];
+		E_INPTYPES m_InpType;
+		char m_aPrefix[CMAINLOGIC_INPPREFIXES_LENGTH];
+		char m_aName[CMAINLOGIC_INPNAMES_LENGTH];
+		char m_aShortName[CMAINLOGIC_INPSHORTNAMES_LENGTH];
 		int m_Radix;
-	}S_NUMBER;
+	}S_INPUT;
 
 	typedef struct
 	{
@@ -197,29 +200,29 @@ private:
 
 	int ParseInput(const char* pInput, size_t LenInput, S_INPUTTOKENS *psInputTokens);
 	int EvaluateTokens(S_INPUTTOKENS *psInputTokens);
-	int ExtractNumberFromToken(const char *paToken, U64 *pNumber);
+	int ExtractInputFromToken(const char *paToken, U64 *pNumber, char *pCharacter);
 	int ExecuteCommand(S_COMMAND *psCommand, S_INPUTTOKENS *psInputTokens);
 	int CheckSyntax(S_TOKEN* pasToken, size_t AmountTokens);
 	U64 Calculate(S_TOKEN* pasToken, size_t AmountTokens);
 	void PrintResult(U64 Result);
-	U64 ModifyNumberByOperator(U64 Number, E_OPTYPES OpType);
+	U64 ModifyInputByOperator(U64 Number, char Character, E_OPTYPES OpType);
 	int GetOperatorFlags(E_OPTYPES OpType, int OpFlags);
-	bool CheckNumberPrefixCollisions(const char* pPrefix, S_NUMBER** ppsNumberColliding);
+	bool CheckInputPrefixCollisions(const char* pPrefix, S_INPUT** ppsInputColliding);
 	bool CheckOperatorCollisions(const char* pPrefix, S_OPERATOR** ppsOperatorColliding);
 	S_OPERATOR* GetOperatorFromType(E_OPTYPES OpType);
 	S_OPERATOR* GetOperatorFromType(const char *pType);
 	S_OPERATOR* GetOperatorFromToken(const char *paToken);
-	S_NUMBER* GetNumberFromType(E_NUMTYPES NumType);
-	S_NUMBER* GetNumberFromType(const char *pType);
-	S_NUMBER* GetNumberFromPrefix(const char *pPrefix);
-	bool CheckStringFormat(const char* pNumber, E_NUMTYPES NumType);
-	int NumToString(U64 Number, E_NUMTYPES NumType, char* pResult, size_t LenResult);
+	S_INPUT* GetInputFromType(E_INPTYPES InpType);
+	S_INPUT* GetInputFromType(const char *pType);
+	S_INPUT* GetInputFromPrefix(const char *pPrefix);
+	bool CheckStringFormat(const char* pInput, E_INPTYPES InpType);
+	int InputToString(U64 Number, char Character, E_INPTYPES InpType, char* pResult, size_t LenResult);
 	E_USERANSWERS GetUserAnswer(const char *pQuestion, ...);
 	int LoadSaveData();
 	int SaveSaveData();
 	E_COMRETVALS ComHelp(E_COMMANDS ID);
 	E_COMRETVALS ComSetinputformat(const char * pType);
-	E_COMRETVALS ComSetnumberprefix(const char * pType, const char *pNewPrefix);
+	E_COMRETVALS ComSetinputprefix(const char * pType, const char *pNewPrefix);
 	E_COMRETVALS ComSetoperator(const char * pOperator, const char *pNewOperator);
 	E_COMRETVALS ComSetresultorder(const char * pOrder);
 	E_COMRETVALS ComSetresultprefixvisibility(const char * pOrder);
@@ -229,51 +232,52 @@ private:
 	E_COMRETVALS ComClearscreen();
 	E_COMRETVALS ComExit();
 
-	bool m_StartFullscreen;
+	bool m_StartMaximized;
 	bool m_ExitApplication;
-	E_NUMTYPES m_DefaultNumberType;
+	E_INPTYPES m_DefaultInputType;
 	bool m_AutoSave;
 	char m_aResultOrder[CMAINLOGIC_RESULTORDER_LEN];
 	char m_aResultPrefixVis[CMAINLOGIC_RESULTORDER_LEN];
 	S_COMMAND m_asCommands[AMOUNT_COMMANDS] = 
 	{
 		{ COM_HELP,				"help",					"Lists this help",															"",																											"" },
-		{ COM_SET_INPUTFORMAT,	"set_inputformat",		"Sets the default number input format (when no prefix is stated)",			"<Number format label (see below \"" CMAINLOGIC_COMHELP_HEADER_NUMPREFIXES_TEXT "\")>",						CMAINLOGIC_NUMNAME_HEXADECIMAL },
-		{ COM_SET_NUMBERPREFIX,	"set_numberprefix",		"Changes the prefix of a number format to your preferred string",			"<Number format label (see below \"" CMAINLOGIC_COMHELP_HEADER_NUMPREFIXES_TEXT "\")> <string>",			CMAINLOGIC_NUMNAME_OCTAL " 0w" },
+		{ COM_SET_INPUTFORMAT,	"set_inputformat",		"Sets the default input format (when no prefix is stated)",					"<Input format label (see below \"" CMAINLOGIC_COMHELP_HEADER_INPPREFIXES_TEXT "\")>",						CMAINLOGIC_INPNAME_HEXADECIMAL },
+		{ COM_SET_INPUTPREFIX,	"set_inputprefix",		"Changes the prefix of an input format to your preferred string",			"<Input format label (see below \"" CMAINLOGIC_COMHELP_HEADER_INPPREFIXES_TEXT "\")> <string>",				CMAINLOGIC_INPNAME_OCTAL " 0w" },
 		{ COM_SET_OPERATOR,		"set_operator",			"Changes an operator to your preferred string",								"<Operator label (see below \"" CMAINLOGIC_COMHELP_HEADER_OPERATORS_TEXT "\")> <string>",					CMAINLOGIC_OPNAME_EXPONENTIAL " ^" },
-		{ COM_SET_RESULTORDER,	"set_resultorder",		"Sets the order of results (not listed = not visible)",						"<One or more number format short names (see below \"" CMAINLOGIC_COMHELP_HEADER_NUMPREFIXES_TEXT "\")>",	CMAINLOGIC_NUMSHORTNAME_DECIMAL CMAINLOGIC_NUMSHORTNAME_HEXADECIMAL CMAINLOGIC_NUMSHORTNAME_BINARY },
-		{ COM_SET_RESPREFIXVIS,	"set_resultprefixvis",	"Sets the visibility of prefixes on results (not listed = not visible)",	"<One or more number format short names (see below \"" CMAINLOGIC_COMHELP_HEADER_NUMPREFIXES_TEXT "\")>",	CMAINLOGIC_NUMSHORTNAME_DECIMAL CMAINLOGIC_NUMSHORTNAME_BINARY },
+		{ COM_SET_RESULTORDER,	"set_resultorder",		"Sets the order of results (not listed = not visible)",						"<One or more input format short names (see below \"" CMAINLOGIC_COMHELP_HEADER_INPPREFIXES_TEXT "\")>",	CMAINLOGIC_INPSHORTNAME_DECIMAL CMAINLOGIC_INPSHORTNAME_HEXADECIMAL CMAINLOGIC_INPSHORTNAME_BINARY },
+		{ COM_SET_RESPREFIXVIS,	"set_resultprefixvis",	"Sets the visibility of prefixes on results (not listed = not visible)",	"<One or more input format short names (see below \"" CMAINLOGIC_COMHELP_HEADER_INPPREFIXES_TEXT "\")>",	CMAINLOGIC_INPSHORTNAME_DECIMAL CMAINLOGIC_INPSHORTNAME_BINARY },
 		{ COM_SET_AUTOSAVE,		"set_autosave",			"Enables or disables auto saving of settings",								"<on/off>",																									"off" },
 		{ COM_SAVE,				"save",					"Saves the current settings",												"",																											"" },
 		{ COM_RESETSETTINGS,	"reset_settings",		"Resets the settings to their defaults",									"",																											"" },
 		{ COM_CLEARSCREEN,		"clear",				"Clears the screen",														"",																											"" },
 		{ COM_EXIT,				"exit",					"Exits the program",														"",																											"" },
 	};
-	S_NUMBER m_asNumbers[AMOUNT_NUMBERTYPES] =
+	S_INPUT m_asInputs[AMOUNT_INPUTTYPES] =
 	{
-		{ NUT_INVALID,		 "", "invalid",							"",										0},
-		{ NUT_BINARY,		 "", CMAINLOGIC_NUMNAME_BINARY,			CMAINLOGIC_NUMSHORTNAME_BINARY,			2 },
-		{ NUT_DUAL,			 "", CMAINLOGIC_NUMNAME_DUAL,			CMAINLOGIC_NUMSHORTNAME_DUAL,			4 },
-		{ NUT_OCTAL,		 "", CMAINLOGIC_NUMNAME_OCTAL,			CMAINLOGIC_NUMSHORTNAME_OCTAL,			8 },
-		{ NUT_DECIMAL,		 "", CMAINLOGIC_NUMNAME_DECIMAL,		CMAINLOGIC_NUMSHORTNAME_DECIMAL,		10 },
-		{ NUT_HEXADECIMAL,	 "", CMAINLOGIC_NUMNAME_HEXADECIMAL,	CMAINLOGIC_NUMSHORTNAME_HEXADECIMAL,	16 },
+		{ INT_INVALID,		"", "invalid",						"",										0},
+		{ INT_BINARY,		"", CMAINLOGIC_INPNAME_BINARY,		CMAINLOGIC_INPSHORTNAME_BINARY,			2 },
+		{ INT_DUAL,			"", CMAINLOGIC_INPNAME_DUAL,		CMAINLOGIC_INPSHORTNAME_DUAL,			4 },
+		{ INT_OCTAL,		"", CMAINLOGIC_INPNAME_OCTAL,		CMAINLOGIC_INPSHORTNAME_OCTAL,			8 },
+		{ INT_DECIMAL,		"", CMAINLOGIC_INPNAME_DECIMAL,		CMAINLOGIC_INPSHORTNAME_DECIMAL,		10 },
+		{ INT_HEXADECIMAL,	"", CMAINLOGIC_INPNAME_HEXADECIMAL,	CMAINLOGIC_INPSHORTNAME_HEXADECIMAL,	16 },
+		{ INT_ASCII,		"", CMAINLOGIC_INPNAME_ASCII,		CMAINLOGIC_INPSHORTNAME_ASCII,			0 },
 	};
 	S_OPERATOR m_asOperators[AMOUNT_OPERATORS] =
 	{
 		{ OPT_INVALID,			"", "invalid",							0 },
-		{ OPT_ADD,				"", CMAINLOGIC_OPNAME_ADD,				OPFLAG_COMBINE | OPFLAG_MODIFYNUM },
-		{ OPT_SUBTRACT,			"", CMAINLOGIC_OPNAME_SUBTRACT,			OPFLAG_COMBINE | OPFLAG_MODIFYNUM },
-		{ OPT_MULTIPLY,			"", CMAINLOGIC_OPNAME_MULTIPLY,			OPFLAG_COMBINE | OPFLAG_MODIFYNUM },
-		{ OPT_DIVIDE,			"", CMAINLOGIC_OPNAME_DIVIDE,			OPFLAG_COMBINE | OPFLAG_MODIFYNUM },
-		{ OPT_EXPONENTIAL,		"", CMAINLOGIC_OPNAME_EXPONENTIAL,		OPFLAG_COMBINE | OPFLAG_MODIFYNUM },
-		{ OPT_MODULO,			"", CMAINLOGIC_OPNAME_MODULO,			OPFLAG_COMBINE | OPFLAG_MODIFYNUM },
+		{ OPT_ADD,				"", CMAINLOGIC_OPNAME_ADD,				OPFLAG_COMBINE | OPFLAG_MODIFYINP },
+		{ OPT_SUBTRACT,			"", CMAINLOGIC_OPNAME_SUBTRACT,			OPFLAG_COMBINE | OPFLAG_MODIFYINP },
+		{ OPT_MULTIPLY,			"", CMAINLOGIC_OPNAME_MULTIPLY,			OPFLAG_COMBINE | OPFLAG_MODIFYINP },
+		{ OPT_DIVIDE,			"", CMAINLOGIC_OPNAME_DIVIDE,			OPFLAG_COMBINE | OPFLAG_MODIFYINP },
+		{ OPT_EXPONENTIAL,		"", CMAINLOGIC_OPNAME_EXPONENTIAL,		OPFLAG_COMBINE | OPFLAG_MODIFYINP },
+		{ OPT_MODULO,			"", CMAINLOGIC_OPNAME_MODULO,			OPFLAG_COMBINE | OPFLAG_MODIFYINP },
 		{ OPT_AND,				"", CMAINLOGIC_OPNAME_AND,				OPFLAG_COMBINE | OPFLAG_LOGICAL },
 		{ OPT_OR,				"", CMAINLOGIC_OPNAME_OR,				OPFLAG_COMBINE | OPFLAG_LOGICAL },
 		{ OPT_XOR,				"", CMAINLOGIC_OPNAME_XOR,				OPFLAG_COMBINE | OPFLAG_LOGICAL },
-		{ OPT_INVERT,			"", CMAINLOGIC_OPNAME_INVERT,			OPFLAG_MODIFYNUM },
-		{ OPT_REVERT,			"", CMAINLOGIC_OPNAME_REVERT,			OPFLAG_MODIFYNUM },
-		{ OPT_LSHIFT,			"", CMAINLOGIC_OPNAME_LSHIFT,			OPFLAG_COMBINE | OPFLAG_MODIFYNUM },
-		{ OPT_RSHIFT,			"", CMAINLOGIC_OPNAME_RSHIFT,			OPFLAG_COMBINE | OPFLAG_MODIFYNUM },
+		{ OPT_INVERT,			"", CMAINLOGIC_OPNAME_INVERT,			OPFLAG_MODIFYINP },
+		{ OPT_REVERT,			"", CMAINLOGIC_OPNAME_REVERT,			OPFLAG_MODIFYINP },
+		{ OPT_LSHIFT,			"", CMAINLOGIC_OPNAME_LSHIFT,			OPFLAG_COMBINE | OPFLAG_MODIFYINP },
+		{ OPT_RSHIFT,			"", CMAINLOGIC_OPNAME_RSHIFT,			OPFLAG_COMBINE | OPFLAG_MODIFYINP },
 		{ OPT_BRACKET_OPEN,		"", CMAINLOGIC_OPNAME_BRACKET_OPEN,		0 },
 		{ OPT_BRACKET_CLOSE,	"", CMAINLOGIC_OPNAME_BRACKET_CLOSE,	0 },
 	};

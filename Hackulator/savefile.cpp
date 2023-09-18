@@ -17,7 +17,7 @@ CSaveFile::CSaveFile(CMainLogic *pMainLogic, char *pSaveFilePath)
     strncpy(m_aSaveFilePath, pSaveFilePath, ARRAYSIZE(m_aSaveFilePath));
 
 	// write preprocessor incapable default values
-	snprintf(m_asSaveKeys[SK_INPUTFORMAT].m_aDefaultValue, ARRAYSIZE(m_asSaveKeys[0].m_aDefaultValue), "%d", CMainLogic::NUT_DECIMAL);
+	snprintf(m_asSaveKeys[SK_INPUTFORMAT].m_aDefaultValue, ARRAYSIZE(m_asSaveKeys[0].m_aDefaultValue), "%d", CMainLogic::INT_DECIMAL);
 	
 	// check if save file exists
 	fileExists = CCore::CheckFileExists(m_aSaveFilePath);

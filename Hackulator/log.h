@@ -8,11 +8,6 @@
 class CLog
 {
 public:
-    enum E_CUSTOMFLAGS
-    {
-        CFL_NONEWL,
-    };
-
     CLog();
     ~CLog();
 
