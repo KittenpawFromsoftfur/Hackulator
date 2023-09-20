@@ -70,8 +70,8 @@ int CMainLogic::EntryPoint()
 			continue;
 		}
 
-		// parse input
-		retval = ParseInput(aInput, ARRAYSIZE(aInput), &sInputTokens);
+		// split input
+		retval = TokenizeInput(aInput, ARRAYSIZE(aInput), &sInputTokens);
 		if (retval != OK)
 			continue;
 
@@ -87,116 +87,107 @@ void CMainLogic::RequestApplicationExit()
 	m_ExitApplication = true;
 }
 
-int CMainLogic::OnConsoleWindowStateChange()// laststop: get this to work
+int CMainLogic::TokenizeInput(const char* pInput, size_t LenInput, S_INPUTTOKENS *psInputTokens)
 {
-	DWORD modeFlags = 0;
-	int retval = 0;
-
-	retval = GetConsoleDisplayMode(&modeFlags);
-	if (!retval)
-	{
-		m_Log.LogErr("Getting display mode");
-		return ERROR;
-	}
-
-	m_Log.Log("modeflags %d", modeFlags);
-
-	// save
-	retval = SaveSaveData();
-	if (retval != OK)
-		return ERROR;
-
-	return OK;
-}
-
-int CMainLogic::ParseInput(const char* pInput, size_t LenInput, S_INPUTTOKENS *psInputTokens)
-{
-	char aTokenBuf[ARRAYSIZE(psInputTokens->m_aInputTokens[0])] = { 0 };
+	char aTokenBuf[ARRAYSIZE(psInputTokens->m_aaInputTokens[0])] = { 0 };
 	char aTempBuf[ARRAYSIZE(aTokenBuf)] = { 0 };
 	bool stringEnd = false;
-	bool charIsDelim = false;
-	bool charIsOperator = false;
-	bool copyToken = false;
-	int inputTokenIndex = 0;
+	bool charIsWhitespace = false;
+	bool finishToken = false;
+	bool doResetPointer = false;
+	int operatorLen = 0;
+	int tokenBufLen = 0;
+	int tokenIndex = 0;
 
 	for (int i = 0; i < LenInput; ++i)
 	{
-		copyToken = false;
+		finishToken = false;
+		doResetPointer = false;
 
 		if (!pInput[i] || i >= LenInput - 1)
 			stringEnd = true;
 
-		// determine if char is operator
-		charIsOperator = false;
-
-		for (int opInd = 0; opInd < ARRAYSIZE(m_asOperators); ++opInd)
-		{
-			if (CCore::CharContains(pInput[i], m_asOperators[opInd].m_aOperator))
-			{
-				charIsOperator = true;
-				break;
-			}
-		}
-
 		// determine if char is delimiter
 		if (pInput[i] == ' ' || pInput[i] == '\t')
-			charIsDelim = true;
+			charIsWhitespace = true;
 		else
-			charIsDelim = false;
+			charIsWhitespace = false;
 
 		// copy char for char to current token buffer
-		// if char is delimiter, it will not be copied to buffer, instead the previous token will be copied if it is non-empty
-		if (charIsDelim)
+		// whitespaces will finish the token without being appeded, but only if the token buffer is not empty
+		if (charIsWhitespace)
 		{
 			// only if token buffer is non-empty, it will be copied
 			if (strnlen(aTokenBuf, ARRAYSIZE(aTokenBuf)) > 0)
-				copyToken = true;
+				finishToken = true;
 		}
-		else if (charIsOperator)// if char is operator
-		{
-			// it will only be copied to token buffer if the buffer is empty
-			if (strnlen(aTokenBuf, ARRAYSIZE(aTokenBuf)) == 0)
-			{
-				snprintf(aTempBuf, ARRAYSIZE(aTempBuf), "%s%c", aTokenBuf, pInput[i]);
-				strncpy(aTokenBuf, aTempBuf, ARRAYSIZE(aTokenBuf));
-				copyToken = true;
-			}
-			else// otherwise the token will be finished and the char pointer set back by one
-			{
-				i--;
-				copyToken = true;
-			}
-		}
-		else// if char is normal char, it will be copied to token buffer
+		else// append chars to token buffer
 		{
 			snprintf(aTempBuf, ARRAYSIZE(aTempBuf), "%s%c", aTokenBuf, pInput[i]);
-			strncpy(aTokenBuf, aTempBuf, ARRAYSIZE(aTokenBuf));
+			strncpy_s(aTokenBuf, aTempBuf, ARRAYSIZE(aTokenBuf));
 		}
 
-		// copy token, also if string has reached the end and token buffer is filled
-		if (copyToken || (stringEnd && strnlen(aTokenBuf, ARRAYSIZE(aTokenBuf)) > 0))
+		// if token is not yet finished, check for operators as delimiters
+		if (!finishToken)
+		{
+			// operators
+			for (int opInd = 0; opInd < ARRAYSIZE(m_asOperators); ++opInd)
+			{
+				if (CCore::StringContainsNocase(aTokenBuf, m_asOperators[opInd].m_aOperator) != 0)
+				{
+					finishToken = true;
+					operatorLen = strnlen_s(m_asOperators[opInd].m_aOperator, ARRAYSIZE(m_asOperators[opInd].m_aOperator));
+					tokenBufLen = strnlen_s(aTokenBuf, ARRAYSIZE(aTokenBuf));
+
+					// reset pointer if temp buffer is mixed with stuff
+					if (operatorLen != tokenBufLen)
+						doResetPointer = true;
+					break;
+				}
+			}
+		}
+
+		// finish token, also if string has reached the end and token buffer is filled
+		if (finishToken || (stringEnd && strnlen(aTokenBuf, ARRAYSIZE(aTokenBuf)) > 0))
 		{
 			// check if max tokens exceeded
-			if (inputTokenIndex >= ARRAYSIZE(psInputTokens->m_aInputTokens[0]))
+			if (tokenIndex >= ARRAYSIZE(psInputTokens->m_aaInputTokens[0]))
 			{
-				m_Log.LogErr("Max. tokens exceeded, max. %d", ARRAYSIZE(psInputTokens->m_aInputTokens[0]));
+				m_Log.LogErr("Max. tokens exceeded, max. %d", ARRAYSIZE(psInputTokens->m_aaInputTokens[0]));
 				return ERROR;
 			}
 
+			// reset the pointer by operator length and null terminate token buffer before the operator sequence
+			if (doResetPointer)
+			{
+				i -= operatorLen;
+
+				if (tokenBufLen < operatorLen || tokenBufLen >= ARRAYSIZE(aTokenBuf))
+				{
+					m_Log.LogErr("Line %d: \"tokenBufLen < operatorLen || tokenBufLen >= ARRAYSIZE(aTokenBuf)\" --> This should not happen", __LINE__);
+					return ERROR;
+				}
+
+				aTokenBuf[tokenBufLen - operatorLen] = '\0';
+			}
+
 			// copy token buffer to current token
-			strncpy(psInputTokens->m_aInputTokens[inputTokenIndex], aTokenBuf, ARRAYSIZE(psInputTokens->m_aInputTokens[0]));
+			strncpy(psInputTokens->m_aaInputTokens[tokenIndex], aTokenBuf, ARRAYSIZE(psInputTokens->m_aaInputTokens[0]));
 
 			// null buffers
 			memset(aTempBuf, 0, ARRAYSIZE(aTempBuf));
 			memset(aTokenBuf, 0, ARRAYSIZE(aTokenBuf));
-
-			// prepare next token
-			inputTokenIndex++;
+			tokenIndex++;
 		}
 
 		if (stringEnd)
 			break;
 	}
+
+	for (int i = 0; i < 20; ++i)
+		m_Log.Log("[%d] <%s>", i, psInputTokens->m_aaInputTokens[i]);
+
+	system("pause");
 
 	return OK;
 }
@@ -204,7 +195,7 @@ int CMainLogic::ParseInput(const char* pInput, size_t LenInput, S_INPUTTOKENS *p
 int CMainLogic::EvaluateTokens(S_INPUTTOKENS *psInputTokens)
 {
 	int retval = 0;
-	S_TOKEN asToken[ARRAYSIZE(psInputTokens->m_aInputTokens)];
+	S_TOKEN asToken[ARRAYSIZE(psInputTokens->m_aaInputTokens)];
 	int amountTokens = 0;
 	U64 result = 0;
 
@@ -214,39 +205,38 @@ int CMainLogic::EvaluateTokens(S_INPUTTOKENS *psInputTokens)
 	for (int i = 0; i < ARRAYSIZE(m_asCommands); ++i)
 	{
 		// if a command was entered, execute command and leave
-		if (CCore::StringCompareNocase(psInputTokens->m_aInputTokens[0], m_asCommands[i].m_aName, ARRAYSIZE(psInputTokens->m_aInputTokens[0])) == 0)
-			return ExecuteCommand(&m_asCommands[i], psInputTokens);
+		if (CCore::StringCompareNocase(psInputTokens->m_aaInputTokens[0], m_asCommands[i].m_aName, ARRAYSIZE(psInputTokens->m_aaInputTokens[0])) == 0)
+		{
+			retval = ExecuteCommand(&m_asCommands[i], psInputTokens);
+			return retval;
+		}
 	}
 	
+	// no command
 	// parse tokens
-	for (int i = 0; i < ARRAYSIZE(psInputTokens->m_aInputTokens); ++i)
+	for (int i = 0; i < ARRAYSIZE(psInputTokens->m_aaInputTokens); ++i)
 	{
-		if (strnlen(psInputTokens->m_aInputTokens[i], ARRAYSIZE(psInputTokens->m_aInputTokens[0])) == 0)
+		if (strnlen(psInputTokens->m_aaInputTokens[i], ARRAYSIZE(psInputTokens->m_aaInputTokens[0])) == 0)
 			break;
 
 		// determine token type
 		// check for inputs
-		if (ExtractInputFromToken(psInputTokens->m_aInputTokens[i], &asToken[i].m_Number, NULL) == OK)
+		retval = ConvertInputToTokenInput(psInputTokens->m_aaInputTokens[i], &asToken[i]);
+		if (retval != OK)
 		{
-			asToken[i].m_TokType = TOT_INPUT;
-		}// check for operators
-		else if ((asToken[i].m_OpType = GetOperatorFromToken(psInputTokens->m_aInputTokens[i])->m_OpType) != (E_OPTYPES)-1)
-		{
-			asToken[i].m_TokType = TOT_OPERATOR;
-		}
-		else
-		{
-			asToken[i].m_TokType = (E_TOKTYPES)-1;
+			// check for operators
+			retval = ConvertInputToTokenOperator(psInputTokens->m_aaInputTokens[i], &asToken[i]);
+			if (retval != OK)
+				asToken[i].m_TokType = TOT_INVALID;
 		}
 
-		// check token validity and fill rest of token data
-		if (asToken[i].m_TokType == (E_TOKTYPES)-1)
+		// check token validity
+		if (asToken[i].m_TokType == TOT_INVALID)
 		{
-			m_Log.LogErr("%d. token '%s' is an invalid token (expected %s input format)", i + 1, psInputTokens->m_aInputTokens[i], GetInputFromType(m_DefaultInputType)->m_aName);
+			m_Log.LogErr("%d. token '%s' is an invalid token (expected %s input format)", i + 1, psInputTokens->m_aaInputTokens[i], GetInputFromType(m_DefaultInputType)->m_aName);
 			return ERROR;
 		}
 
-		strncpy(asToken[i].m_aToken, psInputTokens->m_aInputTokens[i], ARRAYSIZE(psInputTokens->m_aInputTokens[0]));
 		amountTokens++;
 	}
 
@@ -279,42 +269,42 @@ int CMainLogic::ExecuteCommand(S_COMMAND *psCommand, S_INPUTTOKENS *psInputToken
 		break;
 
 	case COM_SET_INPUTFORMAT:
-		retvalCom = ComSetinputformat(psInputTokens->m_aInputTokens[1]);
+		retvalCom = ComSetinputformat(psInputTokens->m_aaInputTokens[1]);
 		doAutoSave = true;
 		break;
 
 	case COM_SET_INPUTPREFIX:
-		retvalCom = ComSetinputprefix(psInputTokens->m_aInputTokens[1], psInputTokens->m_aInputTokens[2]);
+		retvalCom = ComSetinputprefix(psInputTokens->m_aaInputTokens[1], psInputTokens->m_aaInputTokens[2]);
 		doAutoSave = true;
 		break;
 
 	case COM_SET_OPERATOR:
-		retvalCom = ComSetoperator(psInputTokens->m_aInputTokens[1], psInputTokens->m_aInputTokens[2]);
+		retvalCom = ComSetoperator(psInputTokens->m_aaInputTokens[1], psInputTokens->m_aaInputTokens[2]);
 		doAutoSave = true;
 		break;
 
 	case COM_SET_RESULTORDER:
-		retvalCom = ComSetresultorder(psInputTokens->m_aInputTokens[1]);
+		retvalCom = ComSetresultorder(psInputTokens->m_aaInputTokens[1]);
 		doAutoSave = true;
 		break;
 
 	case COM_SET_RESPREFIXVIS:
-		retvalCom = ComSetresultprefixvisibility(psInputTokens->m_aInputTokens[1]);
+		retvalCom = ComSetresultprefixvisibility(psInputTokens->m_aaInputTokens[1]);
 		doAutoSave = true;
 		break;
 
 	case COM_SET_AUTOSAVE:
-		retvalCom = ComSetautosave(psInputTokens->m_aInputTokens[1]);
+		retvalCom = ComSetautosave(psInputTokens->m_aaInputTokens[1]);
 		doAutoSave = true;
 		forceAutoSave = true;// because if you disable it, that would not be saved
 		break;
 
 	case COM_SAVE:
-		retvalCom = ComSave(psInputTokens->m_aInputTokens[1]);
+		retvalCom = ComSave(psInputTokens->m_aaInputTokens[1]);
 		break;
 
 	case COM_RESETSETTINGS:
-		retvalCom = ComResetSettings(psInputTokens->m_aInputTokens[1]);
+		retvalCom = ComResetSettings(psInputTokens->m_aaInputTokens[1]);
 		break;
 
 	case COM_CLEARSCREEN:
@@ -363,7 +353,7 @@ int CMainLogic::ExecuteCommand(S_COMMAND *psCommand, S_INPUTTOKENS *psInputToken
 	return OK;
 }
 
-int CMainLogic::ExtractInputFromToken(const char* paToken, U64 *pNumber, char *pCharacter)
+int CMainLogic::ConvertInputToTokenInput(const char* paToken, S_TOKEN *psToken)
 {
 	int retval = 0;
 	E_INPTYPES inpType = INT_INVALID;
@@ -371,9 +361,6 @@ int CMainLogic::ExtractInputFromToken(const char* paToken, U64 *pNumber, char *p
 	char aContent[CMAINLOGIC_CONSOLE_TOKEN_SIZE] = { 0 };
 	bool hasPrefix = true;
 	const char* pConvertableInput = aContent;
-
-	if (!pNumber)
-		return ERROR;
 	
 	// check the input type
 	// copy prefix
@@ -382,8 +369,6 @@ int CMainLogic::ExtractInputFromToken(const char* paToken, U64 *pNumber, char *p
 
 	// copy content
 	strncpy(aContent, paToken + CMAINLOGIC_CONSOLE_INPUT_PREFIX_LENGTH, ARRAYSIZE(aContent));
-
-	inpType = INT_INVALID;
 
 	inpType = GetInputFromPrefix(aPrefix)->m_InpType;
 
@@ -408,8 +393,26 @@ int CMainLogic::ExtractInputFromToken(const char* paToken, U64 *pNumber, char *p
 			return ERROR;
 	}
 
-	// convert token to input
-	*pNumber = strtoull(pConvertableInput, NULL, m_asInputs[inpType].m_Radix);
+	// fill token data
+	psToken->m_Number = strtoull(pConvertableInput, NULL, m_asInputs[inpType].m_Radix);
+	psToken->m_TokType = TOT_INPUT;
+	strncpy(psToken->m_aToken, paToken, ARRAYSIZE(psToken->m_aToken));
+
+	return OK;
+}
+
+int CMainLogic::ConvertInputToTokenOperator(const char* paToken, S_TOKEN *psToken)
+{
+	E_OPTYPES opType = OPT_INVALID;
+
+	opType = GetOperatorFromToken(paToken)->m_OpType;
+	if (opType == OPT_INVALID);
+		return ERROR;
+
+	// fill token data
+	psToken->m_OpType = opType;
+	psToken->m_TokType = TOT_OPERATOR;
+	strncpy(psToken->m_aToken, paToken, ARRAYSIZE(psToken->m_aToken));
 
 	return OK;
 }
@@ -587,8 +590,8 @@ U64 CMainLogic::Calculate(S_TOKEN* pasToken, size_t AmountTokens)
 			{
 				U64 firstInp = asCalculation[firstInpIndex].m_Number;
 				U64 secondInp = asCalculation[secondInpIndex].m_Number;
-				E_OPTYPES firstOperatorType = (E_OPTYPES)-1;
-				E_OPTYPES secondOperatorType = (E_OPTYPES)-1;
+				E_OPTYPES firstOperatorType = OPT_INVALID;
+				E_OPTYPES secondOperatorType = OPT_INVALID;
 
 				// operator types (first one does not have to have a operator)
 				if (firstOperatorIndex >= 0)

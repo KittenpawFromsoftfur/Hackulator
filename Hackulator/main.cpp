@@ -7,9 +7,8 @@
 #include "mainlogic.h"
 
 /* TODO
-	set operator add +++++ --> +++++ becomes + because of tokenization... bad... disable tokenization for commands
-	Somehow managed to do this by setting prefixes and operators
-		set_autosave --> prints result instaead of func
+	Absolutely wrong code: ConvertInputToTokenInput() --> CMAINLOGIC_CONSOLE_INPUT_PREFIX_LENGTH
+	Unify ConvertInputToTokenOperator() and ConvertInputToTokenInput()
 	NUT_ASCII
 	Operator and Number inheritance from same base class
 	usable as command line tool

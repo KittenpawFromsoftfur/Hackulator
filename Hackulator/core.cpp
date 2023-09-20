@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <Windows.h>
+#include <Shlwapi.h>
 
 #include "core.h"
 
@@ -44,6 +45,11 @@ int CCore::CharCompareNocase(char Source, char Compare)
 		return diff;
 
 	return 0;
+}
+
+char* CCore::StringContainsNocase(const char* pHaystack, const char* pNeedle)
+{
+	return StrStrIA(pHaystack, pNeedle);
 }
 
 bool CCore::StringIsEmpty(const char* pSource)

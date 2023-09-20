@@ -91,7 +91,6 @@ public:
     ~CMainLogic();
     int EntryPoint();
 	void RequestApplicationExit();
-	int OnConsoleWindowStateChange();
 
 	CLog m_Log;
 	CSaveFile *m_pSaveFile;
@@ -116,6 +115,7 @@ private:
 
 	enum E_TOKTYPES
 	{
+		TOT_INVALID,
 		TOT_INPUT,
 		TOT_OPERATOR,
 	};
@@ -159,7 +159,7 @@ private:
 	// structs
 	typedef struct
 	{
-		char m_aInputTokens[CMAINLOGIC_CONSOLE_TOKENS][CMAINLOGIC_CONSOLE_TOKEN_SIZE];
+		char m_aaInputTokens[CMAINLOGIC_CONSOLE_TOKENS][CMAINLOGIC_CONSOLE_TOKEN_SIZE];
 	}S_INPUTTOKENS;
 
 	typedef struct
@@ -198,9 +198,10 @@ private:
 		int m_Flags;
 	}S_OPERATOR;
 
-	int ParseInput(const char* pInput, size_t LenInput, S_INPUTTOKENS *psInputTokens);
+	int TokenizeInput(const char* pInput, size_t LenInput, S_INPUTTOKENS *psInputTokens);
 	int EvaluateTokens(S_INPUTTOKENS *psInputTokens);
-	int ExtractInputFromToken(const char *paToken, U64 *pNumber, char *pCharacter);
+	int ConvertInputToTokenInput(const char *paToken, S_TOKEN *psToken);
+	int ConvertInputToTokenOperator(const char *paToken, S_TOKEN *psToken);
 	int ExecuteCommand(S_COMMAND *psCommand, S_INPUTTOKENS *psInputTokens);
 	int CheckSyntax(S_TOKEN* pasToken, size_t AmountTokens);
 	U64 Calculate(S_TOKEN* pasToken, size_t AmountTokens);

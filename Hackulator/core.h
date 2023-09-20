@@ -27,6 +27,7 @@ public:
     ~CCore();
     static int StringCompareNocase(const char* pSource, const char* pCompare, size_t Len);
     static int CharCompareNocase(char Source, char Compare);
+    static char* StringContainsNocase(const char* pHaystack, const char* pNeedle);
     static bool StringIsEmpty(const char* pString);
     static void StringCopyIgnore(char* pDest, const char* pSource, size_t Len, const char* pIgnore);
     static void StringRevert(char *pString);
