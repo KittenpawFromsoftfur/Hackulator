@@ -7,10 +7,10 @@
 #include "mainlogic.h"
 
 /* TODO
-	Absolutely wrong code: ConvertInputToTokenInput() --> CMAINLOGIC_CONSOLE_INPUT_PREFIX_LENGTH
-	Unify ConvertInputToTokenOperator() and ConvertInputToTokenInput()
-	NUT_ASCII
+	INT_ASCII
+	PrintReslut() more elegant with arrays
 	Operator and Number inheritance from same base class
+	savefile has Init() and all default values are changed by function from mainlogic constructor --> private E_INPTYPES again
 	usable as command line tool
 	help should explain every single aspect of the hackulator (help file cause too complicated? generatehelp?)
 	Use math library to not have to make own syntax (Otherwise Algorithms to code self: "Shunting yard", "Reverse polish notation")

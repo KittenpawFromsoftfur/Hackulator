@@ -26,7 +26,6 @@
 #define CMAINLOGIC_CONSOLE_BUFFERLEN 256
 #define CMAINLOGIC_CONSOLE_TOKENS (CMAINLOGIC_CONSOLE_BUFFERLEN / 2)
 #define CMAINLOGIC_CONSOLE_TOKEN_SIZE (64 + CMAINLOGIC_INPPREFIXES_LENGTH)
-#define CMAINLOGIC_CONSOLE_INPUT_PREFIX_LENGTH 2
 #define CMAINLOGIC_CONSOLE_USERANSWER_BUFFERLEN 12
 
 // input names
@@ -200,8 +199,8 @@ private:
 
 	int TokenizeInput(const char* pInput, size_t LenInput, S_INPUTTOKENS *psInputTokens);
 	int EvaluateTokens(S_INPUTTOKENS *psInputTokens);
-	int ConvertInputToTokenInput(const char *paToken, S_TOKEN *psToken);
-	int ConvertInputToTokenOperator(const char *paToken, S_TOKEN *psToken);
+	int ConvertInputToToken(const char *pToken, S_TOKEN *psToken);
+	S_INPUT* CopyInputWithoutPrefix(const char* pToken, char* pContent, size_t LenContent, bool *pWasPrefixed);
 	int ExecuteCommand(S_COMMAND *psCommand, S_INPUTTOKENS *psInputTokens);
 	int CheckSyntax(S_TOKEN* pasToken, size_t AmountTokens);
 	U64 Calculate(S_TOKEN* pasToken, size_t AmountTokens);
@@ -212,11 +211,11 @@ private:
 	bool CheckOperatorCollisions(const char* pPrefix, S_OPERATOR** ppsOperatorColliding);
 	S_OPERATOR* GetOperatorFromType(E_OPTYPES OpType);
 	S_OPERATOR* GetOperatorFromType(const char *pType);
-	S_OPERATOR* GetOperatorFromToken(const char *paToken);
+	S_OPERATOR* GetOperatorFromString(const char *pString);
 	S_INPUT* GetInputFromType(E_INPTYPES InpType);
 	S_INPUT* GetInputFromType(const char *pType);
-	S_INPUT* GetInputFromPrefix(const char *pPrefix);
-	bool CheckStringFormat(const char* pInput, E_INPTYPES InpType);
+	S_INPUT* GetInputFromString(const char *pString);
+	bool CheckInputFormat(const char* pInput, E_INPTYPES InpType);
 	int InputToString(U64 Number, char Character, E_INPTYPES InpType, char* pResult, size_t LenResult);
 	E_USERANSWERS GetUserAnswer(const char *pQuestion, ...);
 	int LoadSaveData();

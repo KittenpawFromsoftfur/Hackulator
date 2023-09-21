@@ -184,11 +184,6 @@ int CMainLogic::TokenizeInput(const char* pInput, size_t LenInput, S_INPUTTOKENS
 			break;
 	}
 
-	for (int i = 0; i < 20; ++i)
-		m_Log.Log("[%d] <%s>", i, psInputTokens->m_aaInputTokens[i]);
-
-	system("pause");
-
 	return OK;
 }
 
@@ -219,19 +214,9 @@ int CMainLogic::EvaluateTokens(S_INPUTTOKENS *psInputTokens)
 		if (strnlen(psInputTokens->m_aaInputTokens[i], ARRAYSIZE(psInputTokens->m_aaInputTokens[0])) == 0)
 			break;
 
-		// determine token type
-		// check for inputs
-		retval = ConvertInputToTokenInput(psInputTokens->m_aaInputTokens[i], &asToken[i]);
+		// convert input to token
+		retval = ConvertInputToToken(psInputTokens->m_aaInputTokens[i], &asToken[i]);
 		if (retval != OK)
-		{
-			// check for operators
-			retval = ConvertInputToTokenOperator(psInputTokens->m_aaInputTokens[i], &asToken[i]);
-			if (retval != OK)
-				asToken[i].m_TokType = TOT_INVALID;
-		}
-
-		// check token validity
-		if (asToken[i].m_TokType == TOT_INVALID)
 		{
 			m_Log.LogErr("%d. token '%s' is an invalid token (expected %s input format)", i + 1, psInputTokens->m_aaInputTokens[i], GetInputFromType(m_DefaultInputType)->m_aName);
 			return ERROR;
@@ -353,72 +338,94 @@ int CMainLogic::ExecuteCommand(S_COMMAND *psCommand, S_INPUTTOKENS *psInputToken
 	return OK;
 }
 
-int CMainLogic::ConvertInputToTokenInput(const char* paToken, S_TOKEN *psToken)
+int CMainLogic::ConvertInputToToken(const char* pToken, S_TOKEN *psToken)
 {
 	int retval = 0;
-	E_INPTYPES inpType = INT_INVALID;
-	char aPrefix[CMAINLOGIC_CONSOLE_INPUT_PREFIX_LENGTH + 1] = { 0 };
+	S_INPUT *psInput = GetInputFromType(INT_INVALID);
+	S_OPERATOR* psOperator = GetOperatorFromType(OPT_INVALID);
 	char aContent[CMAINLOGIC_CONSOLE_TOKEN_SIZE] = { 0 };
-	bool hasPrefix = true;
-	const char* pConvertableInput = aContent;
+	bool wasPrefixed = false;
 	
-	// check the input type
-	// copy prefix
-	strncpy(aPrefix, paToken, ARRAYSIZE(aPrefix));
-	aPrefix[ARRAYSIZE(aPrefix) -1] = '\0';
+	// copy input without prefix
+	psInput = CopyInputWithoutPrefix(pToken, aContent, ARRAYSIZE(aContent), &wasPrefixed);
 
-	// copy content
-	strncpy(aContent, paToken + CMAINLOGIC_CONSOLE_INPUT_PREFIX_LENGTH, ARRAYSIZE(aContent));
-
-	inpType = GetInputFromPrefix(aPrefix)->m_InpType;
-
-	// no prefix given
-	if (inpType == INT_INVALID)
+	// input type is valid --> It could be an input or non-prefixed operator
+	if (psInput->m_InpType != INT_INVALID)
 	{
-		hasPrefix = false;
-		pConvertableInput = paToken;// if no prefix is given, the convertable input is the token instead of the content which is missing some characters
+		// check the input format
+		if (CheckInputFormat(aContent, psInput->m_InpType))
+		{
+			// valid input --> fill token data
+			psToken->m_Number = strtoull(aContent, NULL, psInput->m_Radix);
+			psToken->m_TokType = TOT_INPUT;
+			strncpy(psToken->m_aToken, pToken, ARRAYSIZE(psToken->m_aToken));
+			return OK;
+		}
 
-		// check if non-prefixed input is matching the format of the default type
-		inpType = GetInputFromType(m_DefaultInputType)->m_InpType;
-	}
-
-	// type still cannot be determined, return
-	if (inpType == INT_INVALID)
-		return ERROR;
-
-	// check the input format (only necessary if the input is prefixed, since non-prefixed input has already been checked... see above)
-	if (hasPrefix)
-	{
-		if (!CheckStringFormat(pConvertableInput, m_asInputs[inpType].m_InpType))
+		// if it was prefixed, it is for sure not an operator
+		if (wasPrefixed)
 			return ERROR;
 	}
 
-	// fill token data
-	psToken->m_Number = strtoull(pConvertableInput, NULL, m_asInputs[inpType].m_Radix);
-	psToken->m_TokType = TOT_INPUT;
-	strncpy(psToken->m_aToken, paToken, ARRAYSIZE(psToken->m_aToken));
+	// if it reaches here, it was not a valid input or an unprefixed operator --> check for operator
+	psOperator = GetOperatorFromString(pToken);
+	if (psOperator->m_OpType == OPT_INVALID)
+		return ERROR;
 
+	// valid operator --> fill token data
+	psToken->m_OpType = psOperator->m_OpType;
+	psToken->m_TokType = TOT_OPERATOR;
+	strncpy(psToken->m_aToken, pToken, ARRAYSIZE(psToken->m_aToken));
 	return OK;
 }
 
-int CMainLogic::ConvertInputToTokenOperator(const char* paToken, S_TOKEN *psToken)
+CMainLogic::S_INPUT* CMainLogic::CopyInputWithoutPrefix(const char *pToken, char *pContent, size_t LenContent, bool *pWasPrefixed)
 {
-	E_OPTYPES opType = OPT_INVALID;
+	S_INPUT* psFoundInput = GetInputFromType(INT_INVALID);
+	char* pSubstring = 0;
+	int prefixLen = 0;
 
-	opType = GetOperatorFromToken(paToken)->m_OpType;
-	if (opType == OPT_INVALID);
-		return ERROR;
+	// default treat as prefixed
+	*pWasPrefixed = true;
 
-	// fill token data
-	psToken->m_OpType = opType;
-	psToken->m_TokType = TOT_OPERATOR;
-	strncpy(psToken->m_aToken, paToken, ARRAYSIZE(psToken->m_aToken));
+	for (int i = 0; i < ARRAYSIZE(m_asInputs); ++i)
+	{
+		// determine input type of prefix
+		pSubstring = CCore::StringContainsNocase(pToken, m_asInputs[i].m_aPrefix);
+		if (pSubstring != 0)
+		{
+			psFoundInput = GetInputFromType((E_INPTYPES)i);
+			prefixLen = strnlen(psFoundInput->m_aPrefix, ARRAYSIZE(psFoundInput->m_aPrefix));
+			break;
+		}
+	}
 
-	return OK;
+	// check if input contained a valid prefix
+	if (psFoundInput->m_InpType != INT_INVALID)
+	{
+		// the prefix is at the beginning of the string as it should be
+		if (pSubstring == pToken)
+		{
+			// copy the content to the buffer without prefix and return
+			strncpy(pContent, pSubstring + prefixLen, LenContent);
+			return psFoundInput;
+		}
+		else// input is somewhere in the middle of the string, which is not the correct place
+		{
+			return GetInputFromType(INT_INVALID);
+		}
+	}
+	else// no prefix was given so copy the entire input and return default number type
+	{
+		*pWasPrefixed = false;
+		strncpy(pContent, pToken, LenContent);
+		return GetInputFromType(m_DefaultInputType);
+	}
 }
 
 int CMainLogic::CheckSyntax(S_TOKEN* pasToken, size_t AmountTokens)
 {
+	// syntax is always gud :)
 	return OK;
 
 	/*
@@ -604,7 +611,6 @@ U64 CMainLogic::Calculate(S_TOKEN* pasToken, size_t AmountTokens)
 				//secondInp = ModifyInputByOperator(secondInp, 0, secondOperatorType);
 
 				// calculate
-
 				switch (secondOperatorType)
 				{
 				case OPT_ADD:
@@ -710,32 +716,32 @@ void CMainLogic::PrintResult(U64 Result)
 		switch (m_aResultOrder[i])
 		{
 		case CMAINLOGIC_INPSHORTNAME_BINARY[0]:
-			pPrefix = m_asInputs[INT_BINARY].m_aPrefix;
+			pPrefix = GetInputFromType(INT_BINARY)->m_aPrefix;
 			paInp = aInpBin;
 			break;
 
 		case CMAINLOGIC_INPSHORTNAME_DUAL[0]:
-			pPrefix = m_asInputs[INT_DUAL].m_aPrefix;
+			pPrefix = GetInputFromType(INT_DUAL)->m_aPrefix;
 			paInp = aInpDua;
 			break;
 
 		case CMAINLOGIC_INPSHORTNAME_OCTAL[0]:
-			pPrefix = m_asInputs[INT_OCTAL].m_aPrefix;
+			pPrefix = GetInputFromType(INT_OCTAL)->m_aPrefix;
 			paInp = aInpOct;
 			break;
 
 		case CMAINLOGIC_INPSHORTNAME_DECIMAL[0]:
-			pPrefix = m_asInputs[INT_DECIMAL].m_aPrefix;
+			pPrefix = GetInputFromType(INT_DECIMAL)->m_aPrefix;
 			paInp = aInpDec;
 			break;
 
 		case CMAINLOGIC_INPSHORTNAME_HEXADECIMAL[0]:
-			pPrefix = m_asInputs[INT_HEXADECIMAL].m_aPrefix;
+			pPrefix = GetInputFromType(INT_HEXADECIMAL)->m_aPrefix;
 			paInp = aInpHex;
 			break;
 
 		case CMAINLOGIC_INPSHORTNAME_ASCII[0]:
-			pPrefix = m_asInputs[INT_ASCII].m_aPrefix;
+			pPrefix = GetInputFromType(INT_ASCII)->m_aPrefix;
 			paInp = aInpAsc;
 			break;
 
@@ -747,7 +753,7 @@ void CMainLogic::PrintResult(U64 Result)
 		m_Log.LogCustom("", "", " %s%s ", prefixVisible ? pPrefix : "", paInp);
 	}
 
-	m_Log.LogCustom("", "", "|\n");
+	m_Log.LogCustom("", "\n", "|");
 }
 
 U64 CMainLogic::ModifyInputByOperator(U64 Number, char Character, E_OPTYPES OpType)
@@ -818,7 +824,7 @@ CMainLogic::S_OPERATOR* CMainLogic::GetOperatorFromType(E_OPTYPES OpType)
 			return &m_asOperators[i];
 	}
 
-	return &m_asOperators[OPT_INVALID];
+	return GetOperatorFromType(OPT_INVALID);
 }
 
 CMainLogic::S_OPERATOR* CMainLogic::GetOperatorFromType(const char *pType)
@@ -829,18 +835,18 @@ CMainLogic::S_OPERATOR* CMainLogic::GetOperatorFromType(const char *pType)
 			return &m_asOperators[i];
 	}
 
-	return &m_asOperators[OPT_INVALID];
+	return GetOperatorFromType(OPT_INVALID);
 }
 
-CMainLogic::S_OPERATOR* CMainLogic::GetOperatorFromToken(const char* paToken)
+CMainLogic::S_OPERATOR* CMainLogic::GetOperatorFromString(const char* pString)
 {
 	for (int i = 0; i < ARRAYSIZE(m_asOperators); ++i)
 	{
-		if (CCore::StringCompareNocase(paToken, m_asOperators[i].m_aOperator, CMAINLOGIC_CONSOLE_TOKEN_SIZE) == 0)
+		if (CCore::StringCompareNocase(pString, m_asOperators[i].m_aOperator, CMAINLOGIC_CONSOLE_TOKEN_SIZE) == 0)
 			return &m_asOperators[i];
 	}
 
-	return &m_asOperators[OPT_INVALID];
+	return GetOperatorFromType(OPT_INVALID);
 }
 
 CMainLogic::S_INPUT* CMainLogic::GetInputFromType(E_INPTYPES InpType)
@@ -851,7 +857,7 @@ CMainLogic::S_INPUT* CMainLogic::GetInputFromType(E_INPTYPES InpType)
 			return &m_asInputs[i];
 	}
 
-	return &m_asInputs[INT_INVALID];
+	return GetInputFromType(INT_INVALID);
 }
 
 CMainLogic::S_INPUT* CMainLogic::GetInputFromType(const char *pType)
@@ -862,22 +868,22 @@ CMainLogic::S_INPUT* CMainLogic::GetInputFromType(const char *pType)
 			return &m_asInputs[i];
 	}
 
-	return &m_asInputs[INT_INVALID];
+	return GetInputFromType(INT_INVALID);
 }
 
 
-CMainLogic::S_INPUT* CMainLogic::GetInputFromPrefix(const char *pPrefix)
+CMainLogic::S_INPUT* CMainLogic::GetInputFromString(const char *pString)
 {
 	for (int i = 0; i < ARRAYSIZE(m_asInputs); ++i)
 	{
-		if (CCore::StringCompareNocase(pPrefix, m_asInputs[i].m_aPrefix, CMAINLOGIC_CONSOLE_TOKEN_SIZE) == 0)
+		if (CCore::StringCompareNocase(pString, m_asInputs[i].m_aPrefix, CMAINLOGIC_CONSOLE_TOKEN_SIZE) == 0)
 			return &m_asInputs[i];
 	}
 
-	return &m_asInputs[INT_INVALID];
+	return GetInputFromType(INT_INVALID);
 }
 
-bool CMainLogic::CheckStringFormat(const char* pInput, E_INPTYPES InpType)
+bool CMainLogic::CheckInputFormat(const char* pInput, E_INPTYPES InpType)
 {
 	switch (InpType)
 	{
@@ -1042,29 +1048,29 @@ int CMainLogic::LoadSaveData()
 
 	// apply
 	// input prefixes
-	strncpy(m_asInputs[INT_BINARY].m_aPrefix, m_pSaveFile->m_asSaveKeys[CSaveFile::SK_INPPREFIX_BINARY].m_aValue, ARRAYSIZE(m_asInputs[0].m_aPrefix));
-	strncpy(m_asInputs[INT_DUAL].m_aPrefix, m_pSaveFile->m_asSaveKeys[CSaveFile::SK_INPPREFIX_DUAL].m_aValue, ARRAYSIZE(m_asInputs[0].m_aPrefix));
-	strncpy(m_asInputs[INT_OCTAL].m_aPrefix, m_pSaveFile->m_asSaveKeys[CSaveFile::SK_INPPREFIX_OCTAL].m_aValue, ARRAYSIZE(m_asInputs[0].m_aPrefix));
-	strncpy(m_asInputs[INT_DECIMAL].m_aPrefix, m_pSaveFile->m_asSaveKeys[CSaveFile::SK_INPPREFIX_DECIMAL].m_aValue, ARRAYSIZE(m_asInputs[0].m_aPrefix));
-	strncpy(m_asInputs[INT_HEXADECIMAL].m_aPrefix, m_pSaveFile->m_asSaveKeys[CSaveFile::SK_INPPREFIX_HEXADECIMAL].m_aValue, ARRAYSIZE(m_asInputs[0].m_aPrefix));
-	strncpy(m_asInputs[INT_ASCII].m_aPrefix, m_pSaveFile->m_asSaveKeys[CSaveFile::SK_INPPREFIX_ASCII].m_aValue, ARRAYSIZE(m_asInputs[0].m_aPrefix));
+	strncpy(GetInputFromType(INT_BINARY)->m_aPrefix, m_pSaveFile->m_asSaveKeys[CSaveFile::SK_INPPREFIX_BINARY].m_aValue, ARRAYSIZE(m_asInputs[0].m_aPrefix));
+	strncpy(GetInputFromType(INT_DUAL)->m_aPrefix, m_pSaveFile->m_asSaveKeys[CSaveFile::SK_INPPREFIX_DUAL].m_aValue, ARRAYSIZE(m_asInputs[0].m_aPrefix));
+	strncpy(GetInputFromType(INT_OCTAL)->m_aPrefix, m_pSaveFile->m_asSaveKeys[CSaveFile::SK_INPPREFIX_OCTAL].m_aValue, ARRAYSIZE(m_asInputs[0].m_aPrefix));
+	strncpy(GetInputFromType(INT_DECIMAL)->m_aPrefix, m_pSaveFile->m_asSaveKeys[CSaveFile::SK_INPPREFIX_DECIMAL].m_aValue, ARRAYSIZE(m_asInputs[0].m_aPrefix));
+	strncpy(GetInputFromType(INT_HEXADECIMAL)->m_aPrefix, m_pSaveFile->m_asSaveKeys[CSaveFile::SK_INPPREFIX_HEXADECIMAL].m_aValue, ARRAYSIZE(m_asInputs[0].m_aPrefix));
+	strncpy(GetInputFromType(INT_ASCII)->m_aPrefix, m_pSaveFile->m_asSaveKeys[CSaveFile::SK_INPPREFIX_ASCII].m_aValue, ARRAYSIZE(m_asInputs[0].m_aPrefix));
 
 	// operator prefixes
-	strncpy(m_asOperators[OPT_ADD].m_aOperator, m_pSaveFile->m_asSaveKeys[CSaveFile::SK_OPPREFIX_ADD].m_aValue, ARRAYSIZE(m_asOperators[0].m_aOperator));
-	strncpy(m_asOperators[OPT_SUBTRACT].m_aOperator, m_pSaveFile->m_asSaveKeys[CSaveFile::SK_OPPREFIX_SUBTRACT].m_aValue, ARRAYSIZE(m_asOperators[0].m_aOperator));
-	strncpy(m_asOperators[OPT_MULTIPLY].m_aOperator, m_pSaveFile->m_asSaveKeys[CSaveFile::SK_OPPREFIX_MULTIPLY].m_aValue, ARRAYSIZE(m_asOperators[0].m_aOperator));
-	strncpy(m_asOperators[OPT_DIVIDE].m_aOperator, m_pSaveFile->m_asSaveKeys[CSaveFile::SK_OPPREFIX_DIVIDE].m_aValue, ARRAYSIZE(m_asOperators[0].m_aOperator));
-	strncpy(m_asOperators[OPT_EXPONENTIAL].m_aOperator, m_pSaveFile->m_asSaveKeys[CSaveFile::SK_OPPREFIX_EXPONENTIAL].m_aValue, ARRAYSIZE(m_asOperators[0].m_aOperator));
-	strncpy(m_asOperators[OPT_MODULO].m_aOperator, m_pSaveFile->m_asSaveKeys[CSaveFile::SK_OPPREFIX_MODULO].m_aValue, ARRAYSIZE(m_asOperators[0].m_aOperator));
-	strncpy(m_asOperators[OPT_AND].m_aOperator, m_pSaveFile->m_asSaveKeys[CSaveFile::SK_OPPREFIX_AND].m_aValue, ARRAYSIZE(m_asOperators[0].m_aOperator));
-	strncpy(m_asOperators[OPT_OR].m_aOperator, m_pSaveFile->m_asSaveKeys[CSaveFile::SK_OPPREFIX_OR].m_aValue, ARRAYSIZE(m_asOperators[0].m_aOperator));
-	strncpy(m_asOperators[OPT_XOR].m_aOperator, m_pSaveFile->m_asSaveKeys[CSaveFile::SK_OPPREFIX_XOR].m_aValue, ARRAYSIZE(m_asOperators[0].m_aOperator));
-	strncpy(m_asOperators[OPT_INVERT].m_aOperator, m_pSaveFile->m_asSaveKeys[CSaveFile::SK_OPPREFIX_INVERT].m_aValue, ARRAYSIZE(m_asOperators[0].m_aOperator));
-	strncpy(m_asOperators[OPT_REVERT].m_aOperator, m_pSaveFile->m_asSaveKeys[CSaveFile::SK_OPPREFIX_REVERT].m_aValue, ARRAYSIZE(m_asOperators[0].m_aOperator));
-	strncpy(m_asOperators[OPT_LSHIFT].m_aOperator, m_pSaveFile->m_asSaveKeys[CSaveFile::SK_OPPREFIX_LSHIFT].m_aValue, ARRAYSIZE(m_asOperators[0].m_aOperator));
-	strncpy(m_asOperators[OPT_RSHIFT].m_aOperator, m_pSaveFile->m_asSaveKeys[CSaveFile::SK_OPPREFIX_RSHIFT].m_aValue, ARRAYSIZE(m_asOperators[0].m_aOperator));
-	strncpy(m_asOperators[OPT_BRACKET_OPEN].m_aOperator, m_pSaveFile->m_asSaveKeys[CSaveFile::SK_OPPREFIX_BRACKET_OPEN].m_aValue, ARRAYSIZE(m_asOperators[0].m_aOperator));
-	strncpy(m_asOperators[OPT_BRACKET_CLOSE].m_aOperator, m_pSaveFile->m_asSaveKeys[CSaveFile::SK_OPPREFIX_BRACKET_CLOSE].m_aValue, ARRAYSIZE(m_asOperators[0].m_aOperator));
+	strncpy(GetOperatorFromType(OPT_ADD)->m_aOperator, m_pSaveFile->m_asSaveKeys[CSaveFile::SK_OPPREFIX_ADD].m_aValue, ARRAYSIZE(m_asOperators[0].m_aOperator));
+	strncpy(GetOperatorFromType(OPT_SUBTRACT)->m_aOperator, m_pSaveFile->m_asSaveKeys[CSaveFile::SK_OPPREFIX_SUBTRACT].m_aValue, ARRAYSIZE(m_asOperators[0].m_aOperator));
+	strncpy(GetOperatorFromType(OPT_MULTIPLY)->m_aOperator, m_pSaveFile->m_asSaveKeys[CSaveFile::SK_OPPREFIX_MULTIPLY].m_aValue, ARRAYSIZE(m_asOperators[0].m_aOperator));
+	strncpy(GetOperatorFromType(OPT_DIVIDE)->m_aOperator, m_pSaveFile->m_asSaveKeys[CSaveFile::SK_OPPREFIX_DIVIDE].m_aValue, ARRAYSIZE(m_asOperators[0].m_aOperator));
+	strncpy(GetOperatorFromType(OPT_EXPONENTIAL)->m_aOperator, m_pSaveFile->m_asSaveKeys[CSaveFile::SK_OPPREFIX_EXPONENTIAL].m_aValue, ARRAYSIZE(m_asOperators[0].m_aOperator));
+	strncpy(GetOperatorFromType(OPT_MODULO)->m_aOperator, m_pSaveFile->m_asSaveKeys[CSaveFile::SK_OPPREFIX_MODULO].m_aValue, ARRAYSIZE(m_asOperators[0].m_aOperator));
+	strncpy(GetOperatorFromType(OPT_AND)->m_aOperator, m_pSaveFile->m_asSaveKeys[CSaveFile::SK_OPPREFIX_AND].m_aValue, ARRAYSIZE(m_asOperators[0].m_aOperator));
+	strncpy(GetOperatorFromType(OPT_OR)->m_aOperator, m_pSaveFile->m_asSaveKeys[CSaveFile::SK_OPPREFIX_OR].m_aValue, ARRAYSIZE(m_asOperators[0].m_aOperator));
+	strncpy(GetOperatorFromType(OPT_XOR)->m_aOperator, m_pSaveFile->m_asSaveKeys[CSaveFile::SK_OPPREFIX_XOR].m_aValue, ARRAYSIZE(m_asOperators[0].m_aOperator));
+	strncpy(GetOperatorFromType(OPT_INVERT)->m_aOperator, m_pSaveFile->m_asSaveKeys[CSaveFile::SK_OPPREFIX_INVERT].m_aValue, ARRAYSIZE(m_asOperators[0].m_aOperator));
+	strncpy(GetOperatorFromType(OPT_REVERT)->m_aOperator, m_pSaveFile->m_asSaveKeys[CSaveFile::SK_OPPREFIX_REVERT].m_aValue, ARRAYSIZE(m_asOperators[0].m_aOperator));
+	strncpy(GetOperatorFromType(OPT_LSHIFT)->m_aOperator, m_pSaveFile->m_asSaveKeys[CSaveFile::SK_OPPREFIX_LSHIFT].m_aValue, ARRAYSIZE(m_asOperators[0].m_aOperator));
+	strncpy(GetOperatorFromType(OPT_RSHIFT)->m_aOperator, m_pSaveFile->m_asSaveKeys[CSaveFile::SK_OPPREFIX_RSHIFT].m_aValue, ARRAYSIZE(m_asOperators[0].m_aOperator));
+	strncpy(GetOperatorFromType(OPT_BRACKET_OPEN)->m_aOperator, m_pSaveFile->m_asSaveKeys[CSaveFile::SK_OPPREFIX_BRACKET_OPEN].m_aValue, ARRAYSIZE(m_asOperators[0].m_aOperator));
+	strncpy(GetOperatorFromType(OPT_BRACKET_CLOSE)->m_aOperator, m_pSaveFile->m_asSaveKeys[CSaveFile::SK_OPPREFIX_BRACKET_CLOSE].m_aValue, ARRAYSIZE(m_asOperators[0].m_aOperator));
 
 	// result order
 	strncpy(m_aResultOrder, m_pSaveFile->m_asSaveKeys[CSaveFile::SK_RESULTORDER].m_aValue, ARRAYSIZE(m_aResultOrder));
@@ -1087,29 +1093,29 @@ int CMainLogic::SaveSaveData()
 
 	// write back
 	// input prefixes
-	strncpy(m_pSaveFile->m_asSaveKeys[CSaveFile::SK_INPPREFIX_BINARY].m_aValue, m_asInputs[INT_BINARY].m_aPrefix, ARRAYSIZE(m_pSaveFile->m_asSaveKeys[0].m_aValue));
-	strncpy(m_pSaveFile->m_asSaveKeys[CSaveFile::SK_INPPREFIX_DUAL].m_aValue, m_asInputs[INT_DUAL].m_aPrefix, ARRAYSIZE(m_pSaveFile->m_asSaveKeys[0].m_aValue));
-	strncpy(m_pSaveFile->m_asSaveKeys[CSaveFile::SK_INPPREFIX_OCTAL].m_aValue, m_asInputs[INT_OCTAL].m_aPrefix, ARRAYSIZE(m_pSaveFile->m_asSaveKeys[0].m_aValue));
-	strncpy(m_pSaveFile->m_asSaveKeys[CSaveFile::SK_INPPREFIX_DECIMAL].m_aValue, m_asInputs[INT_DECIMAL].m_aPrefix, ARRAYSIZE(m_pSaveFile->m_asSaveKeys[0].m_aValue));
-	strncpy(m_pSaveFile->m_asSaveKeys[CSaveFile::SK_INPPREFIX_HEXADECIMAL].m_aValue, m_asInputs[INT_HEXADECIMAL].m_aPrefix, ARRAYSIZE(m_pSaveFile->m_asSaveKeys[0].m_aValue));
-	strncpy(m_pSaveFile->m_asSaveKeys[CSaveFile::SK_INPPREFIX_ASCII].m_aValue, m_asInputs[INT_ASCII].m_aPrefix, ARRAYSIZE(m_pSaveFile->m_asSaveKeys[0].m_aValue));
+	strncpy(m_pSaveFile->m_asSaveKeys[CSaveFile::SK_INPPREFIX_BINARY].m_aValue, GetInputFromType(INT_BINARY)->m_aPrefix, ARRAYSIZE(m_pSaveFile->m_asSaveKeys[0].m_aValue));
+	strncpy(m_pSaveFile->m_asSaveKeys[CSaveFile::SK_INPPREFIX_DUAL].m_aValue, GetInputFromType(INT_DUAL)->m_aPrefix, ARRAYSIZE(m_pSaveFile->m_asSaveKeys[0].m_aValue));
+	strncpy(m_pSaveFile->m_asSaveKeys[CSaveFile::SK_INPPREFIX_OCTAL].m_aValue, GetInputFromType(INT_OCTAL)->m_aPrefix, ARRAYSIZE(m_pSaveFile->m_asSaveKeys[0].m_aValue));
+	strncpy(m_pSaveFile->m_asSaveKeys[CSaveFile::SK_INPPREFIX_DECIMAL].m_aValue, GetInputFromType(INT_DECIMAL)->m_aPrefix, ARRAYSIZE(m_pSaveFile->m_asSaveKeys[0].m_aValue));
+	strncpy(m_pSaveFile->m_asSaveKeys[CSaveFile::SK_INPPREFIX_HEXADECIMAL].m_aValue, GetInputFromType(INT_HEXADECIMAL)->m_aPrefix, ARRAYSIZE(m_pSaveFile->m_asSaveKeys[0].m_aValue));
+	strncpy(m_pSaveFile->m_asSaveKeys[CSaveFile::SK_INPPREFIX_ASCII].m_aValue, GetInputFromType(INT_ASCII)->m_aPrefix, ARRAYSIZE(m_pSaveFile->m_asSaveKeys[0].m_aValue));
 
 	// operator prefixes
-	strncpy(m_pSaveFile->m_asSaveKeys[CSaveFile::SK_OPPREFIX_ADD].m_aValue, m_asOperators[OPT_ADD].m_aOperator, ARRAYSIZE(m_pSaveFile->m_asSaveKeys[0].m_aValue));
-	strncpy(m_pSaveFile->m_asSaveKeys[CSaveFile::SK_OPPREFIX_SUBTRACT].m_aValue, m_asOperators[OPT_SUBTRACT].m_aOperator, ARRAYSIZE(m_pSaveFile->m_asSaveKeys[0].m_aValue));
-	strncpy(m_pSaveFile->m_asSaveKeys[CSaveFile::SK_OPPREFIX_MULTIPLY].m_aValue, m_asOperators[OPT_MULTIPLY].m_aOperator, ARRAYSIZE(m_pSaveFile->m_asSaveKeys[0].m_aValue));
-	strncpy(m_pSaveFile->m_asSaveKeys[CSaveFile::SK_OPPREFIX_DIVIDE].m_aValue, m_asOperators[OPT_DIVIDE].m_aOperator, ARRAYSIZE(m_pSaveFile->m_asSaveKeys[0].m_aValue));
-	strncpy(m_pSaveFile->m_asSaveKeys[CSaveFile::SK_OPPREFIX_EXPONENTIAL].m_aValue, m_asOperators[OPT_EXPONENTIAL].m_aOperator, ARRAYSIZE(m_pSaveFile->m_asSaveKeys[0].m_aValue));
-	strncpy(m_pSaveFile->m_asSaveKeys[CSaveFile::SK_OPPREFIX_MODULO].m_aValue, m_asOperators[OPT_MODULO].m_aOperator, ARRAYSIZE(m_pSaveFile->m_asSaveKeys[0].m_aValue));
-	strncpy(m_pSaveFile->m_asSaveKeys[CSaveFile::SK_OPPREFIX_AND].m_aValue, m_asOperators[OPT_AND].m_aOperator, ARRAYSIZE(m_pSaveFile->m_asSaveKeys[0].m_aValue));
-	strncpy(m_pSaveFile->m_asSaveKeys[CSaveFile::SK_OPPREFIX_OR].m_aValue, m_asOperators[OPT_OR].m_aOperator, ARRAYSIZE(m_pSaveFile->m_asSaveKeys[0].m_aValue));
-	strncpy(m_pSaveFile->m_asSaveKeys[CSaveFile::SK_OPPREFIX_XOR].m_aValue, m_asOperators[OPT_XOR].m_aOperator, ARRAYSIZE(m_pSaveFile->m_asSaveKeys[0].m_aValue));
-	strncpy(m_pSaveFile->m_asSaveKeys[CSaveFile::SK_OPPREFIX_INVERT].m_aValue, m_asOperators[OPT_INVERT].m_aOperator, ARRAYSIZE(m_pSaveFile->m_asSaveKeys[0].m_aValue));
-	strncpy(m_pSaveFile->m_asSaveKeys[CSaveFile::SK_OPPREFIX_REVERT].m_aValue, m_asOperators[OPT_REVERT].m_aOperator, ARRAYSIZE(m_pSaveFile->m_asSaveKeys[0].m_aValue));
-	strncpy(m_pSaveFile->m_asSaveKeys[CSaveFile::SK_OPPREFIX_LSHIFT].m_aValue, m_asOperators[OPT_LSHIFT].m_aOperator, ARRAYSIZE(m_pSaveFile->m_asSaveKeys[0].m_aValue));
-	strncpy(m_pSaveFile->m_asSaveKeys[CSaveFile::SK_OPPREFIX_RSHIFT].m_aValue, m_asOperators[OPT_RSHIFT].m_aOperator, ARRAYSIZE(m_pSaveFile->m_asSaveKeys[0].m_aValue));
-	strncpy(m_pSaveFile->m_asSaveKeys[CSaveFile::SK_OPPREFIX_BRACKET_OPEN].m_aValue, m_asOperators[OPT_BRACKET_OPEN].m_aOperator, ARRAYSIZE(m_pSaveFile->m_asSaveKeys[0].m_aValue));
-	strncpy(m_pSaveFile->m_asSaveKeys[CSaveFile::SK_OPPREFIX_BRACKET_CLOSE].m_aValue, m_asOperators[OPT_BRACKET_CLOSE].m_aOperator,		ARRAYSIZE(m_pSaveFile->m_asSaveKeys[0].m_aValue));
+	strncpy(m_pSaveFile->m_asSaveKeys[CSaveFile::SK_OPPREFIX_ADD].m_aValue, GetOperatorFromType(OPT_ADD)->m_aOperator, ARRAYSIZE(m_pSaveFile->m_asSaveKeys[0].m_aValue));
+	strncpy(m_pSaveFile->m_asSaveKeys[CSaveFile::SK_OPPREFIX_SUBTRACT].m_aValue, GetOperatorFromType(OPT_SUBTRACT)->m_aOperator, ARRAYSIZE(m_pSaveFile->m_asSaveKeys[0].m_aValue));
+	strncpy(m_pSaveFile->m_asSaveKeys[CSaveFile::SK_OPPREFIX_MULTIPLY].m_aValue, GetOperatorFromType(OPT_MULTIPLY)->m_aOperator, ARRAYSIZE(m_pSaveFile->m_asSaveKeys[0].m_aValue));
+	strncpy(m_pSaveFile->m_asSaveKeys[CSaveFile::SK_OPPREFIX_DIVIDE].m_aValue, GetOperatorFromType(OPT_DIVIDE)->m_aOperator, ARRAYSIZE(m_pSaveFile->m_asSaveKeys[0].m_aValue));
+	strncpy(m_pSaveFile->m_asSaveKeys[CSaveFile::SK_OPPREFIX_EXPONENTIAL].m_aValue, GetOperatorFromType(OPT_EXPONENTIAL)->m_aOperator, ARRAYSIZE(m_pSaveFile->m_asSaveKeys[0].m_aValue));
+	strncpy(m_pSaveFile->m_asSaveKeys[CSaveFile::SK_OPPREFIX_MODULO].m_aValue, GetOperatorFromType(OPT_MODULO)->m_aOperator, ARRAYSIZE(m_pSaveFile->m_asSaveKeys[0].m_aValue));
+	strncpy(m_pSaveFile->m_asSaveKeys[CSaveFile::SK_OPPREFIX_AND].m_aValue, GetOperatorFromType(OPT_AND)->m_aOperator, ARRAYSIZE(m_pSaveFile->m_asSaveKeys[0].m_aValue));
+	strncpy(m_pSaveFile->m_asSaveKeys[CSaveFile::SK_OPPREFIX_OR].m_aValue, GetOperatorFromType(OPT_OR)->m_aOperator, ARRAYSIZE(m_pSaveFile->m_asSaveKeys[0].m_aValue));
+	strncpy(m_pSaveFile->m_asSaveKeys[CSaveFile::SK_OPPREFIX_XOR].m_aValue, GetOperatorFromType(OPT_XOR)->m_aOperator, ARRAYSIZE(m_pSaveFile->m_asSaveKeys[0].m_aValue));
+	strncpy(m_pSaveFile->m_asSaveKeys[CSaveFile::SK_OPPREFIX_INVERT].m_aValue, GetOperatorFromType(OPT_INVERT)->m_aOperator, ARRAYSIZE(m_pSaveFile->m_asSaveKeys[0].m_aValue));
+	strncpy(m_pSaveFile->m_asSaveKeys[CSaveFile::SK_OPPREFIX_REVERT].m_aValue, GetOperatorFromType(OPT_REVERT)->m_aOperator, ARRAYSIZE(m_pSaveFile->m_asSaveKeys[0].m_aValue));
+	strncpy(m_pSaveFile->m_asSaveKeys[CSaveFile::SK_OPPREFIX_LSHIFT].m_aValue, GetOperatorFromType(OPT_LSHIFT)->m_aOperator, ARRAYSIZE(m_pSaveFile->m_asSaveKeys[0].m_aValue));
+	strncpy(m_pSaveFile->m_asSaveKeys[CSaveFile::SK_OPPREFIX_RSHIFT].m_aValue, GetOperatorFromType(OPT_RSHIFT)->m_aOperator, ARRAYSIZE(m_pSaveFile->m_asSaveKeys[0].m_aValue));
+	strncpy(m_pSaveFile->m_asSaveKeys[CSaveFile::SK_OPPREFIX_BRACKET_OPEN].m_aValue, GetOperatorFromType(OPT_BRACKET_OPEN)->m_aOperator, ARRAYSIZE(m_pSaveFile->m_asSaveKeys[0].m_aValue));
+	strncpy(m_pSaveFile->m_asSaveKeys[CSaveFile::SK_OPPREFIX_BRACKET_CLOSE].m_aValue, GetOperatorFromType(OPT_BRACKET_CLOSE)->m_aOperator,		ARRAYSIZE(m_pSaveFile->m_asSaveKeys[0].m_aValue));
 
 	// result order
 	strncpy(m_pSaveFile->m_asSaveKeys[CSaveFile::SK_RESULTORDER].m_aValue, m_aResultOrder, ARRAYSIZE(m_pSaveFile->m_asSaveKeys[0].m_aValue));
