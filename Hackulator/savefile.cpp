@@ -8,29 +8,10 @@
 
 CSaveFile::CSaveFile(CMainLogic *pMainLogic, char *pSaveFilePath)
 {
-	int retval = 0;
-	bool fileExists = false;
-	char aCurrentVersion[CSAVEFILE_LINE_LEN] = { 0 };
-
     m_pMainLogic = pMainLogic;
+	m_IsInitialized = false;
     memset(m_aSaveFilePath, 0, ARRAYSIZE(m_aSaveFilePath));
     strncpy(m_aSaveFilePath, pSaveFilePath, ARRAYSIZE(m_aSaveFilePath));
-
-	// write preprocessor incapable default values
-	snprintf(m_asSaveKeys[SK_INPUTFORMAT].m_aDefaultValue, ARRAYSIZE(m_asSaveKeys[0].m_aDefaultValue), "%d", CMainLogic::INT_DECIMAL);
-	
-	// check if save file exists
-	fileExists = CCore::CheckFileExists(m_aSaveFilePath);
-	
-	// does not exist, create it
-	if (!fileExists)
-	{
-		retval = CreateSaveFile();
-		if (retval != OK)
-		{
-			CCore::Exit(EXITCODE_ERR_SAVEFILE);
-		}
-	}
 }
 
 CSaveFile::~CSaveFile()
@@ -38,9 +19,48 @@ CSaveFile::~CSaveFile()
 
 }
 
+int CSaveFile::SetDefaultKey(E_SAVEKEYS Key, const char *pString)
+{
+	if (Key < 0 || Key >= AMOUNT_SAVEKEYS)
+	{
+		m_pMainLogic->m_Log.LogErr("Key out of range: %d", Key);
+		return ERROR;
+	}
+
+	strncpy(m_asSaveKeys[Key].m_aDefaultValue, pString, ARRAYSIZE(m_asSaveKeys[0].m_aDefaultValue));
+	return OK;
+}
+
+int CSaveFile::Init()
+{
+	int retval = 0;
+	bool fileExists = false;
+
+	// check if save file exists
+	fileExists = CCore::CheckFileExists(m_aSaveFilePath);
+
+	// if it does not exist, create it
+	if (!fileExists)
+	{
+		retval = CreateSaveFile();
+		if (retval != OK)
+			return ERROR;
+	}
+
+	m_IsInitialized = true;
+	return OK;
+}
+
 int CSaveFile::LoadSaveFile()
 {
 	int retval = 0;
+	
+	// check if initialized
+	if (!m_IsInitialized)
+	{
+		m_pMainLogic->m_Log.LogErr("Save file is not initialized");
+		return ERROR;
+	}
 
 	for (int i = 0; i < AMOUNT_SAVEKEYS; ++i)
 	{
@@ -61,6 +81,13 @@ int CSaveFile::SaveSaveFile()
 {
 	int retval = 0;
 
+	// check if initialized
+	if (!m_IsInitialized)
+	{
+		m_pMainLogic->m_Log.LogErr("Save file is not initialized");
+		return ERROR;
+	}
+
 	for (int i = 0; i < AMOUNT_SAVEKEYS; ++i)
 	{
 		retval = WriteKey((E_SAVEKEYS)i, m_asSaveKeys[i].m_aValue);
@@ -78,6 +105,13 @@ int CSaveFile::SaveSaveFile()
 
 int CSaveFile::ResetSaveFile()
 {
+	// check if initialized
+	if (!m_IsInitialized)
+	{
+		m_pMainLogic->m_Log.LogErr("Save file is not initialized");
+		return ERROR;
+	}
+
 	return CreateSaveFile();
 }
 

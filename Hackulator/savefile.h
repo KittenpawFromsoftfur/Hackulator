@@ -1,28 +1,11 @@
 #pragma once
 
 #include "core.h"
-#include "mainlogic.h"
-
-// default values
-// operator labels
-#define CSAVEFILE_DEFAULT_OPLABEL_ADD           "+"
-#define CSAVEFILE_DEFAULT_OPLABEL_SUBTRACT      "-"
-#define CSAVEFILE_DEFAULT_OPLABEL_MULTIPLY      "*"
-#define CSAVEFILE_DEFAULT_OPLABEL_DIVIDE        "/"
-#define CSAVEFILE_DEFAULT_OPLABEL_EXPONENTIAL   "\""
-#define CSAVEFILE_DEFAULT_OPLABEL_MODULO        "%"
-#define CSAVEFILE_DEFAULT_OPLABEL_AND           "&"
-#define CSAVEFILE_DEFAULT_OPLABEL_OR            "|"
-#define CSAVEFILE_DEFAULT_OPLABEL_XOR           "^"
-#define CSAVEFILE_DEFAULT_OPLABEL_INVERT        "~"
-#define CSAVEFILE_DEFAULT_OPLABEL_REVERT        "$"
-#define CSAVEFILE_DEFAULT_OPLABEL_LSHIFT        "<<"
-#define CSAVEFILE_DEFAULT_OPLABEL_RSHIFT        ">>"
-#define CSAVEFILE_DEFAULT_OPLABEL_BRACKET_OPEN  "("
-#define CSAVEFILE_DEFAULT_OPLABEL_BRACKET_CLOSE ")"
 
 // save file defines
 #define CSAVEFILE_LINE_LEN 16
+
+class CMainLogic;
 
 class CSaveFile
 {
@@ -68,37 +51,39 @@ public:
 
     CSaveFile(CMainLogic *pMainLogic, char *pSaveFilePath);
     ~CSaveFile();
+    int SetDefaultKey(E_SAVEKEYS Key, const char* pString);
+    int Init();
     int LoadSaveFile();
     int SaveSaveFile();
     int ResetSaveFile();
 
     S_SAVEKEY m_asSaveKeys[AMOUNT_SAVEKEYS] =
     {
-        { SK_INPPREFIX_BINARY,          "", "0" CMAINLOGIC_INPSHORTNAME_BINARY },
-        { SK_INPPREFIX_DUAL,            "", "0" CMAINLOGIC_INPSHORTNAME_DUAL },
-        { SK_INPPREFIX_OCTAL,           "", "0" CMAINLOGIC_INPSHORTNAME_OCTAL },
-        { SK_INPPREFIX_DECIMAL,         "", "0" CMAINLOGIC_INPSHORTNAME_DECIMAL },
-        { SK_INPPREFIX_HEXADECIMAL,     "", "0" CMAINLOGIC_INPSHORTNAME_HEXADECIMAL },
-        { SK_INPPREFIX_ASCII,           "", "0" CMAINLOGIC_INPSHORTNAME_ASCII },
-        { SK_OPPREFIX_ADD,              "", CSAVEFILE_DEFAULT_OPLABEL_ADD },
-        { SK_OPPREFIX_SUBTRACT,         "", CSAVEFILE_DEFAULT_OPLABEL_SUBTRACT },
-        { SK_OPPREFIX_MULTIPLY,         "", CSAVEFILE_DEFAULT_OPLABEL_MULTIPLY },
-        { SK_OPPREFIX_DIVIDE,           "", CSAVEFILE_DEFAULT_OPLABEL_DIVIDE },
-        { SK_OPPREFIX_EXPONENTIAL,      "", CSAVEFILE_DEFAULT_OPLABEL_EXPONENTIAL },
-        { SK_OPPREFIX_MODULO,           "", CSAVEFILE_DEFAULT_OPLABEL_MODULO },
-        { SK_OPPREFIX_AND,              "", CSAVEFILE_DEFAULT_OPLABEL_AND },
-        { SK_OPPREFIX_OR,               "", CSAVEFILE_DEFAULT_OPLABEL_OR },
-        { SK_OPPREFIX_XOR,              "", CSAVEFILE_DEFAULT_OPLABEL_XOR },
-        { SK_OPPREFIX_INVERT,           "", CSAVEFILE_DEFAULT_OPLABEL_INVERT },
-        { SK_OPPREFIX_REVERT,           "", CSAVEFILE_DEFAULT_OPLABEL_REVERT },
-        { SK_OPPREFIX_LSHIFT,           "", CSAVEFILE_DEFAULT_OPLABEL_LSHIFT },
-        { SK_OPPREFIX_RSHIFT,           "", CSAVEFILE_DEFAULT_OPLABEL_RSHIFT },
-        { SK_OPPREFIX_BRACKET_OPEN,     "", CSAVEFILE_DEFAULT_OPLABEL_BRACKET_OPEN },
-        { SK_OPPREFIX_BRACKET_CLOSE,    "", CSAVEFILE_DEFAULT_OPLABEL_BRACKET_CLOSE },
-        { SK_RESULTORDER,               "", CMAINLOGIC_INPSHORTNAME_BINARY CMAINLOGIC_INPSHORTNAME_DUAL CMAINLOGIC_INPSHORTNAME_OCTAL CMAINLOGIC_INPSHORTNAME_DECIMAL CMAINLOGIC_INPSHORTNAME_HEXADECIMAL CMAINLOGIC_INPSHORTNAME_ASCII },
-        { SK_RESPREFIXVIS,              "", CMAINLOGIC_INPSHORTNAME_BINARY CMAINLOGIC_INPSHORTNAME_DUAL CMAINLOGIC_INPSHORTNAME_OCTAL CMAINLOGIC_INPSHORTNAME_DECIMAL CMAINLOGIC_INPSHORTNAME_HEXADECIMAL CMAINLOGIC_INPSHORTNAME_ASCII },
-        { SK_AUTOSAVE,                  "", "1" },
-        { SK_INPUTFORMAT,               "", "" },// needs to be set in constructor because enum E_NUMTYPES is not preprocessor capable
+        { SK_INPPREFIX_BINARY,          "", "" },
+        { SK_INPPREFIX_DUAL,            "", "" },
+        { SK_INPPREFIX_OCTAL,           "", "" },
+        { SK_INPPREFIX_DECIMAL,         "", "" },
+        { SK_INPPREFIX_HEXADECIMAL,     "", "" },
+        { SK_INPPREFIX_ASCII,           "", "" },
+        { SK_OPPREFIX_ADD,              "", "" },
+        { SK_OPPREFIX_SUBTRACT,         "", "" },
+        { SK_OPPREFIX_MULTIPLY,         "", "" },
+        { SK_OPPREFIX_DIVIDE,           "", "" },
+        { SK_OPPREFIX_EXPONENTIAL,      "", "" },
+        { SK_OPPREFIX_MODULO,           "", "" },
+        { SK_OPPREFIX_AND,              "", "" },
+        { SK_OPPREFIX_OR,               "", "" },
+        { SK_OPPREFIX_XOR,              "", "" },
+        { SK_OPPREFIX_INVERT,           "", "" },
+        { SK_OPPREFIX_REVERT,           "", "" },
+        { SK_OPPREFIX_LSHIFT,           "", "" },
+        { SK_OPPREFIX_RSHIFT,           "", "" },
+        { SK_OPPREFIX_BRACKET_OPEN,     "", "" },
+        { SK_OPPREFIX_BRACKET_CLOSE,    "", "" },
+        { SK_RESULTORDER,               "", "" },
+        { SK_RESPREFIXVIS,              "", "" },
+        { SK_AUTOSAVE,                  "", "" },
+        { SK_INPUTFORMAT,               "", "" },
     };
 
 private:
@@ -108,4 +93,5 @@ private:
 
     CMainLogic *m_pMainLogic;
     char m_aSaveFilePath[MAX_LEN_FILEPATHS];
+    bool m_IsInitialized;
 };
