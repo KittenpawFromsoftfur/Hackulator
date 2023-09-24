@@ -98,8 +98,6 @@
 #define CMAINLOGIC_DEFAULT_AUTOSAVE "1"
 
 // classes
-class CSaveFile;
-
 class CMainLogic
 {
 public:
@@ -126,13 +124,6 @@ private:
 		COM_CLEARSCREEN,
 		COM_EXIT,
 		AMOUNT_COMMANDS,
-	};
-
-	enum E_TOKTYPES
-	{
-		TOT_INVALID,
-		TOT_INPUT,
-		TOT_OPERATOR,
 	};
 
 	enum E_INPTYPES
@@ -167,7 +158,7 @@ private:
 		OPT_BRACKET_CLOSE,
 		AMOUNT_OPTYPES,
 	};
-	
+
 	enum E_OPPRECEDENCE
 	{
 		OPP_INVALID =		0,
@@ -194,6 +185,13 @@ private:
 		OPA_NONE,
 		OPA_LEFT,
 		OPA_RIGHT,
+	};
+
+	enum E_TOKTYPES
+	{
+		TOT_INVALID,
+		TOT_INPUT,
+		TOT_OPERATOR,
 	};
 
 	enum E_USERANSWERS
@@ -223,15 +221,6 @@ private:
 
 	typedef struct
 	{
-		E_TOKTYPES m_TokType;
-		E_INPTYPES m_InpType;
-		E_OPTYPES m_OpType;
-		U64 m_Number;
-		char m_aToken[CMAINLOGIC_CONSOLE_TOKEN_SIZE];
-	}S_TOKEN;
-
-	typedef struct
-	{
 		E_INPTYPES m_InpType;
 		char m_aPrefix[CMAINLOGIC_INPPREFIXES_LENGTH];
 		char m_aLabel[CMAINLOGIC_INPLABELS_LENGTH];
@@ -250,6 +239,15 @@ private:
 
 	typedef struct
 	{
+		E_TOKTYPES m_TokType;
+		S_INPUT* m_psInput;
+		S_OPERATOR* m_psOperator;
+		U64 m_Number;
+		char m_aToken[CMAINLOGIC_CONSOLE_TOKEN_SIZE];
+	}S_TOKEN;
+
+	typedef struct
+	{
 		char m_aaInputTokens[CMAINLOGIC_CONSOLE_TOKENS][CMAINLOGIC_CONSOLE_TOKEN_SIZE];
 	}S_INPUTTOKENS;
 
@@ -258,6 +256,7 @@ private:
 	int ConvertInputToToken(const char *pToken, S_TOKEN *psToken);
 	S_INPUT* CopyInputWithoutPrefix(const char* pToken, char* pContent, size_t LenContent, bool *pWasPrefixed);
 	int ExecuteCommand(S_COMMAND *psCommand, S_INPUTTOKENS *psInputTokens);
+	int InfixToPostfix(S_TOKEN *pasToken, size_t AmountTokens);
 	int CheckSyntax(S_TOKEN* pasToken, size_t AmountTokens);
 	U64 Calculate(S_TOKEN* pasToken, size_t AmountTokens);
 	void PrintResult(U64 Result);

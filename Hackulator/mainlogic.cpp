@@ -305,6 +305,11 @@ int CMainLogic::EvaluateTokens(S_INPUTTOKENS *psInputTokens)
 	if (retval != OK)
 		return ERROR;
 
+	// convert infix notation to postfix notation
+	retval = InfixToPostfix(asToken, amountTokens);
+	if (retval != OK)
+		return ERROR;
+
 	// calculate tokens
 	result = Calculate(asToken, amountTokens);
 
@@ -413,6 +418,77 @@ int CMainLogic::ExecuteCommand(S_COMMAND *psCommand, S_INPUTTOKENS *psInputToken
 	return OK;
 }
 
+int CMainLogic::InfixToPostfix(S_TOKEN* pasToken, size_t AmountTokens)
+{
+	S_TOKEN* pCurrent = 0;
+	S_TOKEN* pPrevious = 0;
+	S_TOKEN asOutput[CMAINLOGIC_CONSOLE_TOKENS];
+	S_TOKEN asOperators[CMAINLOGIC_CONSOLE_TOKENS];
+	int indOutput = 0;
+	int indOperators = 0;
+
+	// null stacks
+	memset(asOutput, 0, sizeof(S_TOKEN) * ARRAYSIZE(asOutput));
+	memset(asOperators, 0, sizeof(S_TOKEN) * ARRAYSIZE(asOperators));
+	
+	// use shunting yard algorithm to convert infix notation to postfix notation (also "reverse polish notation")
+	for (int i = 0; i < AmountTokens; ++i)
+	{
+		pCurrent = &pasToken[i];
+		pPrevious = &pasToken[MAX(0, i - 1)];
+
+		if (pCurrent->m_TokType == TOT_INPUT)
+		{
+			asOutput[indOutput] = *pCurrent;
+			indOutput++;
+		}
+		else if (pCurrent->m_TokType == TOT_OPERATOR)
+		{
+			// add operator to stack if current operator has higher precedence than top most operator, or if stack is empty
+			if (pPrevious->m_psOperator->m_OpPrecedence > pCurrent->m_psOperator->m_OpPrecedence || indOperators == 0)
+			{
+				asOperators[indOperators] = *pCurrent;
+			}// if current and previous have the same precedence, 
+			else if (pPrevious->m_psOperator->m_OpPrecedence == pCurrent->m_psOperator->m_OpPrecedence)
+			{
+				// laststop, 1+2+3+4 throws exception
+			}
+
+			indOperators++;
+		}
+		else
+		{
+			m_Log.LogErr("%d. token '%s' has invalid token type %d", i, pCurrent->m_aToken, pCurrent->m_TokType);
+			return ERROR;
+		}
+
+		if (indOutput >= ARRAYSIZE(asOutput) || indOperators >= ARRAYSIZE(asOperators))
+		{
+			m_Log.LogErr("Too many tokens, max. %d", CMAINLOGIC_CONSOLE_TOKENS);
+			return ERROR;
+		}
+	}
+
+#ifdef DEBUG
+	m_Log.Log("");
+
+	for (int i = 0; i < ARRAYSIZE(asOutput); ++i)
+	{
+		m_Log.LogCustom("", "", "%s ", asOutput[i].m_aToken);
+	}
+
+	for (int i = 0; i < ARRAYSIZE(asOperators); ++i)
+	{
+		m_Log.LogCustom("", "", "%s ", asOperators[i].m_aToken);
+	}
+
+
+	m_Log.Log("");
+#endif
+
+	return OK;
+}
+
 int CMainLogic::ConvertInputToToken(const char* pToken, S_TOKEN *psToken)
 {
 	int retval = 0;
@@ -431,6 +507,8 @@ int CMainLogic::ConvertInputToToken(const char* pToken, S_TOKEN *psToken)
 		if (CheckInputFormat(aContent, psInput->m_InpType))
 		{
 			// valid input --> fill token data
+			psToken->m_psInput = psInput;
+
 			if (psInput->m_InpType == INT_ASCII)
 				psToken->m_Number = aContent[0];
 			else
@@ -452,7 +530,8 @@ int CMainLogic::ConvertInputToToken(const char* pToken, S_TOKEN *psToken)
 		return ERROR;
 
 	// valid operator --> fill token data
-	psToken->m_OpType = psOperator->m_OpType;
+	psToken->m_psOperator = psOperator;
+	psToken->m_psOperator->m_OpType = psOperator->m_OpType;
 	psToken->m_TokType = TOT_OPERATOR;
 	strncpy(psToken->m_aToken, pToken, ARRAYSIZE(psToken->m_aToken));
 	return OK;
@@ -681,9 +760,9 @@ U64 CMainLogic::Calculate(S_TOKEN* pasToken, size_t AmountTokens)
 
 				// operator types (first one does not have to have a operator)
 				if (firstOperatorIndex >= 0)
-					firstOperatorType = asCalculation[firstOperatorIndex].m_OpType;
+					firstOperatorType = asCalculation[firstOperatorIndex].m_psOperator->m_OpType;
 
-				secondOperatorType = asCalculation[secondOperatorIndex].m_OpType;
+				secondOperatorType = asCalculation[secondOperatorIndex].m_psOperator->m_OpType;
 
 				// modify inputs
 				firstInp = ModifyInputByOperator(firstInp, firstOperatorType);

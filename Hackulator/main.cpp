@@ -7,8 +7,8 @@
 #include "mainlogic.h"
 
 /* TODO
-	Implement operator-precedence parser (shunting yard algorithm)
-	Implement reverse-polish-notation calculator
+	Implement infix-to-postfix function (shunting yard algorithm)
+	Implement postfix-notation-resolver (reverse polish notation)
 	Result with n leading zeroes (settings)
 	Result with Datatype 1-8 Byte (settigns)
 	Result with signed 2's complement (settings)
