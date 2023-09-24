@@ -7,10 +7,19 @@
 #include "mainlogic.h"
 
 /* TODO
-	help should explain every single aspect of the hackulator (help file cause too complicated? generatehelp?)
-	Use math library to not have to make own syntax (Otherwise Algorithms to code self: "Shunting yard", "Reverse polish notation")
-		ExprEval: https://expreval.sourceforge.net/#:~:text=ExprEval%20is%20a%20powerful%2C%20high,once%20into%20an%20expression%20tree.
-		TinyExpr: https://github.com/codeplea/tinyexpr
+	Implement operator-precedence parser (shunting yard algorithm)
+	Implement reverse-polish-notation calculator
+	Result with n leading zeroes (settings)
+	Result with Datatype 1-8 Byte (settigns)
+	Result with signed 2's complement (settings)
+	help
+		(or readme) list operator priority and associativity
+		should explain every single aspect of the hackulator (help file cause too complicated? generatehelp?)
+	Readme with help and thanks
+		https://en.wikipedia.org/wiki/Reverse_Polish_notation
+		https://en.wikipedia.org/wiki/Shunting_yard_algorithm
+		https://en.wikipedia.org/wiki/Operator_associativity
+		https://en.wikipedia.org/wiki/Operators_in_C_and_C%2B%2B#Operator_precedence
 */
 
 int main(int argc, char *argv[])

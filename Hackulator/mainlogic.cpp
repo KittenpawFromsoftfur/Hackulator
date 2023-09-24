@@ -42,10 +42,10 @@ CMainLogic::CMainLogic(bool StartMaximized, char *pSaveFilePath) : m_SaveFile(th
 	m_SaveFile.SetDefaultKey(CSaveFile::SK_OPPREFIX_AND,			CMAINLOGIC_DEFAULT_OPLABEL_AND);
 	m_SaveFile.SetDefaultKey(CSaveFile::SK_OPPREFIX_OR,				CMAINLOGIC_DEFAULT_OPLABEL_OR);
 	m_SaveFile.SetDefaultKey(CSaveFile::SK_OPPREFIX_XOR,			CMAINLOGIC_DEFAULT_OPLABEL_XOR);
-	m_SaveFile.SetDefaultKey(CSaveFile::SK_OPPREFIX_INVERT,			CMAINLOGIC_DEFAULT_OPLABEL_INVERT);
-	m_SaveFile.SetDefaultKey(CSaveFile::SK_OPPREFIX_REVERT,			CMAINLOGIC_DEFAULT_OPLABEL_REVERT);
 	m_SaveFile.SetDefaultKey(CSaveFile::SK_OPPREFIX_LSHIFT,			CMAINLOGIC_DEFAULT_OPLABEL_LSHIFT);
 	m_SaveFile.SetDefaultKey(CSaveFile::SK_OPPREFIX_RSHIFT,			CMAINLOGIC_DEFAULT_OPLABEL_RSHIFT);
+	m_SaveFile.SetDefaultKey(CSaveFile::SK_OPPREFIX_INVERT,			CMAINLOGIC_DEFAULT_OPLABEL_INVERT);
+	m_SaveFile.SetDefaultKey(CSaveFile::SK_OPPREFIX_REVERT,			CMAINLOGIC_DEFAULT_OPLABEL_REVERT);
 	m_SaveFile.SetDefaultKey(CSaveFile::SK_OPPREFIX_BRACKET_OPEN,	CMAINLOGIC_DEFAULT_OPLABEL_BRACKET_OPEN);
 	m_SaveFile.SetDefaultKey(CSaveFile::SK_OPPREFIX_BRACKET_CLOSE,	CMAINLOGIC_DEFAULT_OPLABEL_BRACKET_CLOSE);
 	m_SaveFile.SetDefaultKey(CSaveFile::SK_RESULTORDER,				CMAINLOGIC_DEFAULT_RESULTORDER);
@@ -294,7 +294,7 @@ int CMainLogic::EvaluateTokens(S_INPUTTOKENS *psInputTokens)
 		}
 
 #ifdef DEBUG
-m_Log.Log("[%d] <%s> %d", i, asToken[i].m_aToken, asToken[i].m_Number);
+		m_Log.Log("[%d] <%s> %d", i, asToken[i].m_aToken, asToken[i].m_Number);
 #endif
 
 		amountTokens++;
@@ -820,24 +820,6 @@ U64 CMainLogic::ModifyInputByOperator(U64 Number, E_OPTYPES OpType)
 	return result;
 }
 
-int CMainLogic::GetOperatorFlags(E_OPTYPES OpType, int OpFlags)
-{
-	S_OPERATOR *pOperator = 0;
-
-	// look for matching operator in array and return flags
-	for (int i = 0; i < ARRAYSIZE(m_asOperators); ++i)
-	{
-		if (m_asOperators[i].m_OpType == OpType)
-		{
-			pOperator = &m_asOperators[i];
-			return (m_asOperators->m_Flags & OpFlags);
-		}
-	}
-
-	m_Log.LogErr("This should not occur, operator with index %d was not define in source code", OpType);
-	return 0;
-}
-
 bool CMainLogic::CheckInputPrefixCollisions(const char* pString, S_INPUT** ppsInputColliding)
 {
 	for (int i = 0; i < ARRAYSIZE(m_asInputs); ++i)
@@ -1127,10 +1109,10 @@ int CMainLogic::LoadSaveData()
 	strncpy(GetOperatorFromType(OPT_AND)->m_aOperator, m_SaveFile.m_asSaveKeys[CSaveFile::SK_OPPREFIX_AND].m_aValue, ARRAYSIZE(m_asOperators[0].m_aOperator));
 	strncpy(GetOperatorFromType(OPT_OR)->m_aOperator, m_SaveFile.m_asSaveKeys[CSaveFile::SK_OPPREFIX_OR].m_aValue, ARRAYSIZE(m_asOperators[0].m_aOperator));
 	strncpy(GetOperatorFromType(OPT_XOR)->m_aOperator, m_SaveFile.m_asSaveKeys[CSaveFile::SK_OPPREFIX_XOR].m_aValue, ARRAYSIZE(m_asOperators[0].m_aOperator));
-	strncpy(GetOperatorFromType(OPT_INVERT)->m_aOperator, m_SaveFile.m_asSaveKeys[CSaveFile::SK_OPPREFIX_INVERT].m_aValue, ARRAYSIZE(m_asOperators[0].m_aOperator));
-	strncpy(GetOperatorFromType(OPT_REVERT)->m_aOperator, m_SaveFile.m_asSaveKeys[CSaveFile::SK_OPPREFIX_REVERT].m_aValue, ARRAYSIZE(m_asOperators[0].m_aOperator));
 	strncpy(GetOperatorFromType(OPT_LSHIFT)->m_aOperator, m_SaveFile.m_asSaveKeys[CSaveFile::SK_OPPREFIX_LSHIFT].m_aValue, ARRAYSIZE(m_asOperators[0].m_aOperator));
 	strncpy(GetOperatorFromType(OPT_RSHIFT)->m_aOperator, m_SaveFile.m_asSaveKeys[CSaveFile::SK_OPPREFIX_RSHIFT].m_aValue, ARRAYSIZE(m_asOperators[0].m_aOperator));
+	strncpy(GetOperatorFromType(OPT_INVERT)->m_aOperator, m_SaveFile.m_asSaveKeys[CSaveFile::SK_OPPREFIX_INVERT].m_aValue, ARRAYSIZE(m_asOperators[0].m_aOperator));
+	strncpy(GetOperatorFromType(OPT_REVERT)->m_aOperator, m_SaveFile.m_asSaveKeys[CSaveFile::SK_OPPREFIX_REVERT].m_aValue, ARRAYSIZE(m_asOperators[0].m_aOperator));
 	strncpy(GetOperatorFromType(OPT_BRACKET_OPEN)->m_aOperator, m_SaveFile.m_asSaveKeys[CSaveFile::SK_OPPREFIX_BRACKET_OPEN].m_aValue, ARRAYSIZE(m_asOperators[0].m_aOperator));
 	strncpy(GetOperatorFromType(OPT_BRACKET_CLOSE)->m_aOperator, m_SaveFile.m_asSaveKeys[CSaveFile::SK_OPPREFIX_BRACKET_CLOSE].m_aValue, ARRAYSIZE(m_asOperators[0].m_aOperator));
 
@@ -1172,10 +1154,10 @@ int CMainLogic::SaveSaveData()
 	strncpy(m_SaveFile.m_asSaveKeys[CSaveFile::SK_OPPREFIX_AND].m_aValue, GetOperatorFromType(OPT_AND)->m_aOperator, ARRAYSIZE(m_SaveFile.m_asSaveKeys[0].m_aValue));
 	strncpy(m_SaveFile.m_asSaveKeys[CSaveFile::SK_OPPREFIX_OR].m_aValue, GetOperatorFromType(OPT_OR)->m_aOperator, ARRAYSIZE(m_SaveFile.m_asSaveKeys[0].m_aValue));
 	strncpy(m_SaveFile.m_asSaveKeys[CSaveFile::SK_OPPREFIX_XOR].m_aValue, GetOperatorFromType(OPT_XOR)->m_aOperator, ARRAYSIZE(m_SaveFile.m_asSaveKeys[0].m_aValue));
-	strncpy(m_SaveFile.m_asSaveKeys[CSaveFile::SK_OPPREFIX_INVERT].m_aValue, GetOperatorFromType(OPT_INVERT)->m_aOperator, ARRAYSIZE(m_SaveFile.m_asSaveKeys[0].m_aValue));
-	strncpy(m_SaveFile.m_asSaveKeys[CSaveFile::SK_OPPREFIX_REVERT].m_aValue, GetOperatorFromType(OPT_REVERT)->m_aOperator, ARRAYSIZE(m_SaveFile.m_asSaveKeys[0].m_aValue));
 	strncpy(m_SaveFile.m_asSaveKeys[CSaveFile::SK_OPPREFIX_LSHIFT].m_aValue, GetOperatorFromType(OPT_LSHIFT)->m_aOperator, ARRAYSIZE(m_SaveFile.m_asSaveKeys[0].m_aValue));
 	strncpy(m_SaveFile.m_asSaveKeys[CSaveFile::SK_OPPREFIX_RSHIFT].m_aValue, GetOperatorFromType(OPT_RSHIFT)->m_aOperator, ARRAYSIZE(m_SaveFile.m_asSaveKeys[0].m_aValue));
+	strncpy(m_SaveFile.m_asSaveKeys[CSaveFile::SK_OPPREFIX_INVERT].m_aValue, GetOperatorFromType(OPT_INVERT)->m_aOperator, ARRAYSIZE(m_SaveFile.m_asSaveKeys[0].m_aValue));
+	strncpy(m_SaveFile.m_asSaveKeys[CSaveFile::SK_OPPREFIX_REVERT].m_aValue, GetOperatorFromType(OPT_REVERT)->m_aOperator, ARRAYSIZE(m_SaveFile.m_asSaveKeys[0].m_aValue));
 	strncpy(m_SaveFile.m_asSaveKeys[CSaveFile::SK_OPPREFIX_BRACKET_OPEN].m_aValue, GetOperatorFromType(OPT_BRACKET_OPEN)->m_aOperator, ARRAYSIZE(m_SaveFile.m_asSaveKeys[0].m_aValue));
 	strncpy(m_SaveFile.m_asSaveKeys[CSaveFile::SK_OPPREFIX_BRACKET_CLOSE].m_aValue, GetOperatorFromType(OPT_BRACKET_CLOSE)->m_aOperator,		ARRAYSIZE(m_SaveFile.m_asSaveKeys[0].m_aValue));
 
@@ -1203,6 +1185,7 @@ CMainLogic::E_COMRETVALS CMainLogic::ComHelp(E_COMMANDS ID)
 {
 	char aParameters[CMAINLOGIC_MAX_LEN_COMHELP_BUFFERS] = { 0 };
 	char aExample[CMAINLOGIC_MAX_LEN_COMHELP_BUFFERS] = { 0 };
+	char aOpAssoc[12] = { 0 };
 	S_INPUT* psInput = 0;
 	S_OPERATOR* psOperator = 0;
 
@@ -1258,6 +1241,25 @@ CMainLogic::E_COMRETVALS CMainLogic::ComHelp(E_COMMANDS ID)
 		{
 			psOperator = GetOperatorFromType((E_OPTYPES)i);
 			m_Log.Log(CMAINLOGIC_COMHELP_PREFIX "%s... %s", psOperator->m_aLabel, psOperator->m_aOperator);
+		}
+		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX);
+
+		// OPERATOR DETAILS
+		m_Log.Log(CMAINLOGIC_COMHELP_HEADER_OPERATORDETAILS);
+		for (int i = OPT_INVALID + 1; i < ARRAYSIZE(m_asOperators); ++i)
+		{
+			psOperator = GetOperatorFromType((E_OPTYPES)i);
+
+			if (psOperator->m_OpAssociativity == OPA_LEFT)
+				snprintf(aOpAssoc, ARRAYSIZE(aOpAssoc), "left");
+			else if (psOperator->m_OpAssociativity == OPA_RIGHT)
+				snprintf(aOpAssoc, ARRAYSIZE(aOpAssoc), "right");
+			else if (psOperator->m_OpAssociativity == OPA_NONE)
+				snprintf(aOpAssoc, ARRAYSIZE(aOpAssoc), "none");
+			else
+				snprintf(aOpAssoc, ARRAYSIZE(aOpAssoc), "invalid");
+
+			m_Log.Log(CMAINLOGIC_COMHELP_PREFIX "%s...\tprecedence: %d, associativity: %s", psOperator->m_aOperator, psOperator->m_OpPrecedence, aOpAssoc);
 		}
 		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX);
 
