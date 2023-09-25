@@ -18,6 +18,8 @@
 	Readme with help and thanks
 		https://en.wikipedia.org/wiki/Reverse_Polish_notation
 		https://en.wikipedia.org/wiki/Shunting_yard_algorithm
+		https://mathcenter.oxford.emory.edu/site/cs171/shuntingYardAlgorithm/
+		http://csis.pace.edu/~wolf/CS122/infix-postfix.htm
 		https://en.wikipedia.org/wiki/Operator_associativity
 		https://en.wikipedia.org/wiki/Operators_in_C_and_C%2B%2B#Operator_precedence
 */

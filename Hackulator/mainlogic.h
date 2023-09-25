@@ -257,6 +257,13 @@ private:
 	S_INPUT* CopyInputWithoutPrefix(const char* pToken, char* pContent, size_t LenContent, bool *pWasPrefixed);
 	int ExecuteCommand(S_COMMAND *psCommand, S_INPUTTOKENS *psInputTokens);
 	int InfixToPostfix(S_TOKEN *pasToken, size_t AmountTokens);
+	int GetStackSize(S_TOKEN** papsTarget, size_t MaxSize);
+	bool IsStackEmpty(S_TOKEN** papsStack);
+	int PushToStackTop(S_TOKEN **papsTarget, size_t SizeStack, S_TOKEN* psToken);
+	int PopStack(S_TOKEN** papsSource, size_t SizeSource, S_TOKEN** papsDest, size_t SizeDest, E_OPTYPES OpStopAndDiscard);
+	S_TOKEN* GetStackItemTop(S_TOKEN **papsTarget, size_t SizeStack);
+	S_TOKEN** GetStackSlotFree(S_TOKEN **papsTarget, size_t SizeStack);
+	int DiscardStackItem(S_TOKEN *psTarget);
 	int CheckSyntax(S_TOKEN* pasToken, size_t AmountTokens);
 	U64 Calculate(S_TOKEN* pasToken, size_t AmountTokens);
 	void PrintResult(U64 Result);

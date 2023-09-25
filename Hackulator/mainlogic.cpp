@@ -311,7 +311,7 @@ int CMainLogic::EvaluateTokens(S_INPUTTOKENS *psInputTokens)
 		return ERROR;
 
 	// calculate tokens
-	result = Calculate(asToken, amountTokens);
+	//result = Calculate(asToken, amountTokens);
 
 	// print result
 	PrintResult(result);
@@ -420,72 +420,219 @@ int CMainLogic::ExecuteCommand(S_COMMAND *psCommand, S_INPUTTOKENS *psInputToken
 
 int CMainLogic::InfixToPostfix(S_TOKEN* pasToken, size_t AmountTokens)
 {
-	S_TOKEN* pCurrent = 0;
-	S_TOKEN* pPrevious = 0;
-	S_TOKEN asOutput[CMAINLOGIC_CONSOLE_TOKENS];
-	S_TOKEN asOperators[CMAINLOGIC_CONSOLE_TOKENS];
-	int indOutput = 0;
-	int indOperators = 0;
-
-	// null stacks
-	memset(asOutput, 0, sizeof(S_TOKEN) * ARRAYSIZE(asOutput));
-	memset(asOperators, 0, sizeof(S_TOKEN) * ARRAYSIZE(asOperators));
+	int retval = 0;
+	S_TOKEN* psCurrent = 0;
+	S_TOKEN* apsOutput[CMAINLOGIC_CONSOLE_TOKENS] = { 0 };
+	S_TOKEN* apsStack[CMAINLOGIC_CONSOLE_TOKENS] = { 0 };
 	
-	// use shunting yard algorithm to convert infix notation to postfix notation (also "reverse polish notation")
+	// use shunting yard algorithm to convert infix notation to postfix notation (also "reverse polish notation"). Source of rules: http://csis.pace.edu/~wolf/CS122/infix-postfix.htm
 	for (int i = 0; i < AmountTokens; ++i)
 	{
-		pCurrent = &pasToken[i];
-		pPrevious = &pasToken[MAX(0, i - 1)];
+		psCurrent = &pasToken[i];
 
-		if (pCurrent->m_TokType == TOT_INPUT)
+		// check current token type
+		if (psCurrent->m_TokType == TOT_INPUT)
 		{
-			asOutput[indOutput] = *pCurrent;
-			indOutput++;
+			// Rule 1: Print operands as they arrive
+			retval = PushToStackTop(apsOutput, ARRAYSIZE(apsOutput), psCurrent);
+			if (retval != OK)
+				return ERROR;
 		}
-		else if (pCurrent->m_TokType == TOT_OPERATOR)
+		else if (psCurrent->m_TokType == TOT_OPERATOR)
 		{
-			// add operator to stack if current operator has higher precedence than top most operator, or if stack is empty
-			if (pPrevious->m_psOperator->m_OpPrecedence > pCurrent->m_psOperator->m_OpPrecedence || indOperators == 0)
+			// Rule 2: If the stack is empty or contains a left parenthesis on top, push the incoming operator onto the stack.
+			if (IsStackEmpty(apsStack) || GetStackItemTop(apsStack, ARRAYSIZE(apsStack))->m_psOperator->m_OpType == OPT_BRACKET_OPEN)
 			{
-				asOperators[indOperators] = *pCurrent;
-			}// if current and previous have the same precedence, 
-			else if (pPrevious->m_psOperator->m_OpPrecedence == pCurrent->m_psOperator->m_OpPrecedence)
+				retval = PushToStackTop(apsStack, ARRAYSIZE(apsStack), psCurrent);
+				if (retval != OK)
+					return ERROR;
+			}// Rule 3: If the incoming symbol is a left parenthesis, push it on the stack.
+			else if (psCurrent->m_psOperator->m_OpType == OPT_BRACKET_OPEN)
 			{
-				// laststop, 1+2+3+4 throws exception
-			}
+				retval = PushToStackTop(apsStack, ARRAYSIZE(apsStack), psCurrent);
+				if (retval != OK)
+					return ERROR;
+			}// Rule 4: If the incoming symbol is a right parenthesis, pop the stack and print the operators until you see a left parenthesis. Discard the pair of parentheses.
+			else if (psCurrent->m_psOperator->m_OpType == OPT_BRACKET_CLOSE)
+			{
+				retval = PopStack(apsStack, ARRAYSIZE(apsStack), apsOutput, ARRAYSIZE(apsOutput), OPT_BRACKET_OPEN);
+				if (retval != OK)
+					return ERROR;
+			}// Rule 5: If the incoming symbol has higher precedence than the top of the stack, push it on the stack.
+			else if (psCurrent->m_psOperator->m_OpPrecedence > GetStackItemTop(apsStack, ARRAYSIZE(apsStack))->m_psOperator->m_OpPrecedence)
+			{
+				retval = PushToStackTop(apsStack, ARRAYSIZE(apsStack), psCurrent);
+				if (retval != OK)
+					return ERROR;
+			}// Rule 6: If the incoming symbol has equal precedence with the top of the stack, use association.
+			else if (psCurrent->m_psOperator->m_OpPrecedence == GetStackItemTop(apsStack, ARRAYSIZE(apsStack))->m_psOperator->m_OpPrecedence)
+			{
+				// Rule 6 (Continued): If the association is left to right, pop and print the top of the stack and then push the incoming operator.
+				if (psCurrent->m_psOperator->m_OpAssociativity == OPA_LEFT)
+				{
+					retval = PopStack(apsStack, ARRAYSIZE(apsStack), apsOutput, ARRAYSIZE(apsOutput), OPT_INVALID);
+					if (retval != OK)
+						return ERROR;
 
-			indOperators++;
+					retval = PushToStackTop(apsStack, ARRAYSIZE(apsStack), psCurrent);
+					if (retval != OK)
+						return ERROR;
+				}// Rule 6 (Continued): If the association is right to left, push the incoming operator.
+				else if (psCurrent->m_psOperator->m_OpAssociativity == OPA_RIGHT)
+				{
+					retval = PushToStackTop(apsStack, ARRAYSIZE(apsStack), psCurrent);
+					if (retval != OK)
+						return ERROR;
+				}
+			}// Rule 7: If the incoming symbol has lower precedence than the symbol on the top of the stack, pop the stack and print the top operator. Then test the incoming operator against the new top of stack.
+			else if (psCurrent->m_psOperator->m_OpPrecedence < GetStackItemTop(apsStack, ARRAYSIZE(apsStack))->m_psOperator->m_OpPrecedence)
+			{
+				// for ...
+			}
 		}
 		else
 		{
-			m_Log.LogErr("%d. token '%s' has invalid token type %d", i, pCurrent->m_aToken, pCurrent->m_TokType);
-			return ERROR;
-		}
-
-		if (indOutput >= ARRAYSIZE(asOutput) || indOperators >= ARRAYSIZE(asOperators))
-		{
-			m_Log.LogErr("Too many tokens, max. %d", CMAINLOGIC_CONSOLE_TOKENS);
+			m_Log.LogErr("%d. token '%s' has invalid token type %d", i, psCurrent->m_aToken, psCurrent->m_TokType);
 			return ERROR;
 		}
 	}
+
+	// Rule 8: At the end of the expression, pop and print all operators on the stack. (No parentheses should remain.)
+	retval = PopStack(apsStack, ARRAYSIZE(apsStack), apsOutput, ARRAYSIZE(apsOutput), OPT_INVALID);
+	if (retval != OK)
+		return ERROR;
 
 #ifdef DEBUG
 	m_Log.Log("");
 
-	for (int i = 0; i < ARRAYSIZE(asOutput); ++i)
+	for (int i = 0; i < GetStackSize(apsOutput, ARRAYSIZE(apsOutput)); ++i)
 	{
-		m_Log.LogCustom("", "", "%s ", asOutput[i].m_aToken);
-	}
+		if (!apsOutput[i])
+			break;
 
-	for (int i = 0; i < ARRAYSIZE(asOperators); ++i)
-	{
-		m_Log.LogCustom("", "", "%s ", asOperators[i].m_aToken);
+		m_Log.LogCustom("", "", "%s(%d) ", apsOutput[i]->m_aToken, apsOutput[i]->m_TokType);
 	}
-
 
 	m_Log.Log("");
 #endif
 
+	return OK;
+}
+
+int CMainLogic::GetStackSize(S_TOKEN** papsTarget, size_t MaxSize)
+{
+	for (int i = 0; i < MaxSize; ++i)
+	{
+		if (!papsTarget[i])
+			return i;
+	}
+
+	return MaxSize;
+}
+
+bool CMainLogic::IsStackEmpty(S_TOKEN** papsStack)
+{
+	if (papsStack[0])
+		return false;
+
+	return true;
+}
+
+int CMainLogic::PushToStackTop(S_TOKEN **papsTarget, size_t SizeStack, S_TOKEN* psToken)
+{
+	int freeIndex = 0;
+
+	for (int i = 0; i < SizeStack; ++i)
+	{
+		if (!papsTarget[i])
+		{
+			papsTarget[i] = psToken;
+			return OK;
+		}
+	}
+
+	m_Log.LogErr("No free space found on stack");
+	return ERROR;
+}
+
+int CMainLogic::PopStack(S_TOKEN** papsSource, size_t SizeSource, S_TOKEN** papsDest, size_t SizeDest, E_OPTYPES OpStopAndDiscard)
+{
+	S_TOKEN** ppsOutputSlotFree = 0;
+	S_TOKEN* psSourceItemTop = 0;
+	S_TOKEN* psCurrentSourceItem = 0;
+
+	for (int i = 0; i < SizeSource; ++i)
+	{
+		psCurrentSourceItem = papsSource[i];
+
+		if (!psCurrentSourceItem)
+			break;
+
+		// stop at the stopping-operator if one is given
+		m_Log.Log("[%d] toktype = %d <%s>", i, papsSource[i]->m_TokType, papsSource[i]->m_aToken);
+
+		if (OpStopAndDiscard != OPT_INVALID && psCurrentSourceItem->m_psOperator->m_OpType == OpStopAndDiscard)
+		{
+			// discard current token
+			DiscardStackItem(psCurrentSourceItem);
+
+			// stop popping
+			return OK;
+		}
+
+		// transfer from source to output
+		psSourceItemTop = GetStackItemTop(papsSource, SizeSource);
+		if (!psSourceItemTop)
+		{
+			m_Log.LogErr("Getting stack item top for popping stack source %d", i);
+			return ERROR;
+		}
+
+		ppsOutputSlotFree = GetStackSlotFree(papsDest, SizeDest);
+		if (!ppsOutputSlotFree)
+		{
+			m_Log.LogErr("Getting free destination slot for transferring stack source %d to", i);
+			return ERROR;
+		}
+
+		*ppsOutputSlotFree = psSourceItemTop;
+
+		// discard top source item
+		DiscardStackItem(psSourceItemTop);
+	}
+
+	return OK;
+}
+
+CMainLogic::S_TOKEN* CMainLogic::GetStackItemTop(S_TOKEN **papsTarget, size_t SizeStack)
+{
+	S_TOKEN* psExisting = NULL;
+
+	for (int i = 0; i < SizeStack; ++i)
+	{
+		if (!papsTarget[i])
+			return psExisting;
+
+		psExisting = papsTarget[i];
+	}
+
+	return psExisting;
+}
+
+CMainLogic::S_TOKEN** CMainLogic::GetStackSlotFree(S_TOKEN **papsTarget, size_t SizeStack)
+{
+	for (int i = 0; i < SizeStack; ++i)
+	{
+		if (!papsTarget[i])
+			return &papsTarget[i];
+	}
+
+	return NULL;
+}
+
+int CMainLogic::DiscardStackItem(S_TOKEN* psTarget)
+{
+	memset(psTarget, 0, sizeof(S_TOKEN));
 	return OK;
 }
 
@@ -531,7 +678,6 @@ int CMainLogic::ConvertInputToToken(const char* pToken, S_TOKEN *psToken)
 
 	// valid operator --> fill token data
 	psToken->m_psOperator = psOperator;
-	psToken->m_psOperator->m_OpType = psOperator->m_OpType;
 	psToken->m_TokType = TOT_OPERATOR;
 	strncpy(psToken->m_aToken, pToken, ARRAYSIZE(psToken->m_aToken));
 	return OK;
