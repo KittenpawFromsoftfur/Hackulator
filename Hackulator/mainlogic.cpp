@@ -10,10 +10,25 @@
 #include "core.h"
 #include "log.h"
 
+CMainLogic::S_TOKEN gsToken;
+
 CMainLogic::CMainLogic(bool StartMaximized, char *pSaveFilePath) : m_SaveFile(this, pSaveFilePath)
 {
 	int retval = 0;
 	char aDefaultValue[ARRAYSIZE(m_SaveFile.m_asSaveKeys[0].m_aDefaultValue)] = { 0 };
+
+
+
+
+	memset(&gsToken, 0, sizeof(gsToken));
+	snprintf(gsToken.m_aToken, ARRAYSIZE(gsToken.m_aToken), "helo");
+	gsToken.m_psOperator = GetOperatorFromType(OPT_DIVIDE);
+	gsToken.m_TokType = TOT_OPERATOR;
+
+
+
+
+
 
 	// default initialize members
 	m_ExitApplication = false;
@@ -470,7 +485,7 @@ int CMainLogic::InfixToPostfix(S_TOKEN* pasToken, size_t AmountTokens)
 				// Rule 6 (Continued): If the association is left to right, pop and print the top of the stack and then push the incoming operator.
 				if (psCurrent->m_psOperator->m_OpAssociativity == OPA_LEFT)
 				{
-					retval = PopStack(apsStack, ARRAYSIZE(apsStack), apsOutput, ARRAYSIZE(apsOutput), OPT_INVALID);
+					retval = PopStack(apsStack, ARRAYSIZE(apsStack), apsOutput, ARRAYSIZE(apsOutput));
 					if (retval != OK)
 						return ERROR;
 
@@ -484,10 +499,21 @@ int CMainLogic::InfixToPostfix(S_TOKEN* pasToken, size_t AmountTokens)
 					if (retval != OK)
 						return ERROR;
 				}
-			}// Rule 7: If the incoming symbol has lower precedence than the symbol on the top of the stack, pop the stack and print the top operator. Then test the incoming operator against the new top of stack.
-			else if (psCurrent->m_psOperator->m_OpPrecedence < GetStackItemTop(apsStack, ARRAYSIZE(apsStack))->m_psOperator->m_OpPrecedence)
+			}
+			else// Rule 7: If the incoming symbol has lower precedence than the symbol on the top of the stack, pop the stack and print the top operator. Then test the incoming operator against the new top of stack.
 			{
-				// for ...
+				// Laststop: What do you mean, test the incoming operator against new top?
+
+				if (psCurrent->m_psOperator->m_OpPrecedence < GetStackItemTop(apsStack, ARRAYSIZE(apsStack))->m_psOperator->m_OpPrecedence)
+				{
+					retval = PopStack(apsStack, ARRAYSIZE(apsStack), apsOutput, ARRAYSIZE(apsOutput), OPT_INVALID, true);
+					if (retval != OK)
+						return ERROR;
+				}
+				else
+				{
+					break;
+				}
 			}
 		}
 		else
@@ -498,7 +524,7 @@ int CMainLogic::InfixToPostfix(S_TOKEN* pasToken, size_t AmountTokens)
 	}
 
 	// Rule 8: At the end of the expression, pop and print all operators on the stack. (No parentheses should remain.)
-	retval = PopStack(apsStack, ARRAYSIZE(apsStack), apsOutput, ARRAYSIZE(apsOutput), OPT_INVALID);
+	retval = PopStack(apsStack, ARRAYSIZE(apsStack), apsOutput, ARRAYSIZE(apsOutput));
 	if (retval != OK)
 		return ERROR;
 
@@ -510,7 +536,7 @@ int CMainLogic::InfixToPostfix(S_TOKEN* pasToken, size_t AmountTokens)
 		if (!apsOutput[i])
 			break;
 
-		m_Log.LogCustom("", "", "%s(%d) ", apsOutput[i]->m_aToken, apsOutput[i]->m_TokType);
+		m_Log.LogCustom("", "", "%s ", apsOutput[i]->m_aToken);
 	}
 
 	m_Log.Log("");
@@ -555,7 +581,7 @@ int CMainLogic::PushToStackTop(S_TOKEN **papsTarget, size_t SizeStack, S_TOKEN* 
 	return ERROR;
 }
 
-int CMainLogic::PopStack(S_TOKEN** papsSource, size_t SizeSource, S_TOKEN** papsDest, size_t SizeDest, E_OPTYPES OpStopAndDiscard)
+int CMainLogic::PopStack(S_TOKEN** papsSource, size_t SizeSource, S_TOKEN** papsDest, size_t SizeDest, E_OPTYPES OpStopAndDiscard, bool StopAtFirstOperatorAndDiscard)
 {
 	S_TOKEN** ppsOutputSlotFree = 0;
 	S_TOKEN* psSourceItemTop = 0;
@@ -569,15 +595,13 @@ int CMainLogic::PopStack(S_TOKEN** papsSource, size_t SizeSource, S_TOKEN** paps
 			break;
 
 		// stop at the stopping-operator if one is given
-		m_Log.Log("[%d] toktype = %d <%s>", i, papsSource[i]->m_TokType, papsSource[i]->m_aToken);
-
 		if (OpStopAndDiscard != OPT_INVALID && psCurrentSourceItem->m_psOperator->m_OpType == OpStopAndDiscard)
 		{
 			// discard current token
-			DiscardStackItem(psCurrentSourceItem);
+			DiscardStackItem(&psCurrentSourceItem);
 
 			// stop popping
-			return OK;
+			break;
 		}
 
 		// transfer from source to output
@@ -598,7 +622,11 @@ int CMainLogic::PopStack(S_TOKEN** papsSource, size_t SizeSource, S_TOKEN** paps
 		*ppsOutputSlotFree = psSourceItemTop;
 
 		// discard top source item
-		DiscardStackItem(psSourceItemTop);
+		DiscardStackItem(&psSourceItemTop);
+
+		// stop popping after first operator
+		if (StopAtFirstOperatorAndDiscard)
+			break;
 	}
 
 	return OK;
@@ -630,9 +658,9 @@ CMainLogic::S_TOKEN** CMainLogic::GetStackSlotFree(S_TOKEN **papsTarget, size_t 
 	return NULL;
 }
 
-int CMainLogic::DiscardStackItem(S_TOKEN* psTarget)
+int CMainLogic::DiscardStackItem(S_TOKEN** ppsTarget)
 {
-	memset(psTarget, 0, sizeof(S_TOKEN));
+	*ppsTarget = NULL;
 	return OK;
 }
 
