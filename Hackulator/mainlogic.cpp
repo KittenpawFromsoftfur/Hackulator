@@ -10,25 +10,10 @@
 #include "core.h"
 #include "log.h"
 
-CMainLogic::S_TOKEN gsToken;
-
 CMainLogic::CMainLogic(bool StartMaximized, char *pSaveFilePath) : m_SaveFile(this, pSaveFilePath)
 {
 	int retval = 0;
 	char aDefaultValue[ARRAYSIZE(m_SaveFile.m_asSaveKeys[0].m_aDefaultValue)] = { 0 };
-
-
-
-
-	memset(&gsToken, 0, sizeof(gsToken));
-	snprintf(gsToken.m_aToken, ARRAYSIZE(gsToken.m_aToken), "helo");
-	gsToken.m_psOperator = GetOperatorFromType(OPT_DIVIDE);
-	gsToken.m_TokType = TOT_OPERATOR;
-
-
-
-
-
 
 	// default initialize members
 	m_ExitApplication = false;
@@ -78,6 +63,26 @@ CMainLogic::CMainLogic(bool StartMaximized, char *pSaveFilePath) : m_SaveFile(th
 	retval = LoadSaveData();
 	if (retval != OK)
 		CCore::Exit(EXITCODE_ERR_MAINLOGIC);
+
+	// coding error checks
+	// operator and input names must not contain spaces, so commands like renaming work properly on them
+	for (int i = 0; i < ARRAYSIZE(m_asInputs); ++i)
+	{
+		if (CCore::StringFindFirstCharacter(m_asInputs[i].m_aLabel, " \t") != 0)
+		{
+			m_Log.LogErr("Input label '%s' contains whitespaces", m_asInputs[i].m_aLabel);
+			CCore::Exit(EXITCODE_ERR_MAINLOGIC);
+		}
+	}
+
+	for (int i = 0; i < ARRAYSIZE(m_asOperators); ++i)
+	{
+		if (CCore::StringFindFirstCharacter(m_asOperators[i].m_aLabel, " \t") != 0)
+		{
+			m_Log.LogErr("Operator label '%s' contains whitespaces", m_asOperators[i].m_aLabel);
+			CCore::Exit(EXITCODE_ERR_MAINLOGIC);
+		}
+	}
 }
 
 CMainLogic::~CMainLogic()
@@ -271,6 +276,7 @@ int CMainLogic::EvaluateTokens(S_INPUTTOKENS *psInputTokens)
 {
 	int retval = 0;
 	S_TOKEN asToken[ARRAYSIZE(psInputTokens->m_aaInputTokens)];
+	S_TOKEN* apsTokenPostfix[ARRAYSIZE(psInputTokens->m_aaInputTokens)] = { 0 };
 	int amountTokens = 0;
 	U64 result = 0;
 	S_INPUT* pCurrentExpectedInput = GetInputFromType(INT_INVALID);
@@ -308,10 +314,6 @@ int CMainLogic::EvaluateTokens(S_INPUTTOKENS *psInputTokens)
 			return ERROR;
 		}
 
-#ifdef DEBUG
-		m_Log.Log("[%d] <%s> %d", i, asToken[i].m_aToken, asToken[i].m_Number);
-#endif
-
 		amountTokens++;
 	}
 
@@ -321,12 +323,12 @@ int CMainLogic::EvaluateTokens(S_INPUTTOKENS *psInputTokens)
 		return ERROR;
 
 	// convert infix notation to postfix notation
-	retval = InfixToPostfix(asToken, amountTokens);
+	retval = InfixToPostfix(asToken, amountTokens, apsTokenPostfix, ARRAYSIZE(apsTokenPostfix));
 	if (retval != OK)
 		return ERROR;
 
 	// calculate tokens
-	//result = Calculate(asToken, amountTokens);
+	result = Calculate(apsTokenPostfix, ARRAYSIZE(apsTokenPostfix));
 
 	// print result
 	PrintResult(result);
@@ -433,14 +435,14 @@ int CMainLogic::ExecuteCommand(S_COMMAND *psCommand, S_INPUTTOKENS *psInputToken
 	return OK;
 }
 
-int CMainLogic::InfixToPostfix(S_TOKEN* pasToken, size_t AmountTokens)
+int CMainLogic::InfixToPostfix(S_TOKEN* pasToken, size_t AmountTokens, S_TOKEN **papsTokenPostfix, size_t SizeTokenPostfix)
 {
 	int retval = 0;
 	S_TOKEN* psCurrent = 0;
 	S_TOKEN* apsOutput[CMAINLOGIC_CONSOLE_TOKENS] = { 0 };
 	S_TOKEN* apsStack[CMAINLOGIC_CONSOLE_TOKENS] = { 0 };
 	
-	// use shunting yard algorithm to convert infix notation to postfix notation (also "reverse polish notation"). Source of rules: http://csis.pace.edu/~wolf/CS122/infix-postfix.htm
+	// use shunting yard algorithm to convert infix notation to postfix notation (also "reverse polish notation"). Source of rules: http://csis.pace.edu/~wolf/CS122/infix-postfix.htm<
 	for (int i = 0; i < AmountTokens; ++i)
 	{
 		psCurrent = &pasToken[i];
@@ -456,11 +458,21 @@ int CMainLogic::InfixToPostfix(S_TOKEN* pasToken, size_t AmountTokens)
 		else if (psCurrent->m_TokType == TOT_OPERATOR)
 		{
 			// Rule 2: If the stack is empty or contains a left parenthesis on top, push the incoming operator onto the stack.
-			if (IsStackEmpty(apsStack) || GetStackItemTop(apsStack, ARRAYSIZE(apsStack))->m_psOperator->m_OpType == OPT_BRACKET_OPEN)
+			if (IsStackEmpty(apsStack) || GetStackItemTop(apsStack, ARRAYSIZE(apsStack))[0]->m_psOperator->m_OpType == OPT_BRACKET_OPEN)
 			{
-				retval = PushToStackTop(apsStack, ARRAYSIZE(apsStack), psCurrent);
-				if (retval != OK)
-					return ERROR;
+				// Intervention: If the current operator is a closing bracket, pop both off the stack
+				if (!IsStackEmpty(apsStack) && psCurrent->m_psOperator->m_OpType == OPT_BRACKET_CLOSE)
+				{
+					retval = PopStack(apsStack, ARRAYSIZE(apsStack), apsOutput, ARRAYSIZE(apsOutput), OPT_BRACKET_OPEN);
+					if (retval != OK)
+						return ERROR;
+				}
+				else// no closing bracket --> follow through with rule 2
+				{
+					retval = PushToStackTop(apsStack, ARRAYSIZE(apsStack), psCurrent);
+					if (retval != OK)
+						return ERROR;
+				}
 			}// Rule 3: If the incoming symbol is a left parenthesis, push it on the stack.
 			else if (psCurrent->m_psOperator->m_OpType == OPT_BRACKET_OPEN)
 			{
@@ -474,13 +486,13 @@ int CMainLogic::InfixToPostfix(S_TOKEN* pasToken, size_t AmountTokens)
 				if (retval != OK)
 					return ERROR;
 			}// Rule 5: If the incoming symbol has higher precedence than the top of the stack, push it on the stack.
-			else if (psCurrent->m_psOperator->m_OpPrecedence > GetStackItemTop(apsStack, ARRAYSIZE(apsStack))->m_psOperator->m_OpPrecedence)
+			else if (psCurrent->m_psOperator->m_OpPrecedence > GetStackItemTop(apsStack, ARRAYSIZE(apsStack))[0]->m_psOperator->m_OpPrecedence)
 			{
 				retval = PushToStackTop(apsStack, ARRAYSIZE(apsStack), psCurrent);
 				if (retval != OK)
 					return ERROR;
 			}// Rule 6: If the incoming symbol has equal precedence with the top of the stack, use association.
-			else if (psCurrent->m_psOperator->m_OpPrecedence == GetStackItemTop(apsStack, ARRAYSIZE(apsStack))->m_psOperator->m_OpPrecedence)
+			else if (psCurrent->m_psOperator->m_OpPrecedence == GetStackItemTop(apsStack, ARRAYSIZE(apsStack))[0]->m_psOperator->m_OpPrecedence)
 			{
 				// Rule 6 (Continued): If the association is left to right, pop and print the top of the stack and then push the incoming operator.
 				if (psCurrent->m_psOperator->m_OpAssociativity == OPA_LEFT)
@@ -500,19 +512,27 @@ int CMainLogic::InfixToPostfix(S_TOKEN* pasToken, size_t AmountTokens)
 						return ERROR;
 				}
 			}
-			else// Rule 7: If the incoming symbol has lower precedence than the symbol on the top of the stack, pop the stack and print the top operator. Then test the incoming operator against the new top of stack.
+			else// Rule 7: If the incoming symbol has lower [or equal] precedence than the symbol on the top of the stack, pop the stack and print the top operator. Then test the incoming operator against the new top of stack.
 			{
-				// Laststop: What do you mean, test the incoming operator against new top?
+				// Rule 7 Simplified: As long as the incoming symbol has lower or equal precedence than the symbol on the top of the stack, pop the top of the stack to the output. Otherwise push to stack top.
+				while (1)
+				{
+					S_TOKEN** ppsTop = GetStackItemTop(apsStack, ARRAYSIZE(apsStack));
 
-				if (psCurrent->m_psOperator->m_OpPrecedence < GetStackItemTop(apsStack, ARRAYSIZE(apsStack))->m_psOperator->m_OpPrecedence)
-				{
-					retval = PopStack(apsStack, ARRAYSIZE(apsStack), apsOutput, ARRAYSIZE(apsOutput), OPT_INVALID, true);
-					if (retval != OK)
-						return ERROR;
-				}
-				else
-				{
-					break;
+					if ((ppsTop && psCurrent->m_psOperator->m_OpPrecedence <= ppsTop[0]->m_psOperator->m_OpPrecedence))
+					{
+						retval = PopStack(apsStack, ARRAYSIZE(apsStack), apsOutput, ARRAYSIZE(apsOutput), OPT_INVALID, 1);
+						if (retval != OK)
+							return ERROR;
+					}
+					else
+					{
+						retval = PushToStackTop(apsStack, ARRAYSIZE(apsStack), psCurrent);
+						if (retval != OK)
+							return ERROR;
+
+						break;
+					}
 				}
 			}
 		}
@@ -524,23 +544,21 @@ int CMainLogic::InfixToPostfix(S_TOKEN* pasToken, size_t AmountTokens)
 	}
 
 	// Rule 8: At the end of the expression, pop and print all operators on the stack. (No parentheses should remain.)
-	retval = PopStack(apsStack, ARRAYSIZE(apsStack), apsOutput, ARRAYSIZE(apsOutput));
-	if (retval != OK)
-		return ERROR;
+	if (GetStackSize(apsStack, ARRAYSIZE(apsStack)) > 0)
+	{
+		retval = PopStack(apsStack, ARRAYSIZE(apsStack), apsOutput, ARRAYSIZE(apsOutput));
+		if (retval != OK)
+			return ERROR;
+	}
 
-#ifdef DEBUG
-	m_Log.Log("");
-
-	for (int i = 0; i < GetStackSize(apsOutput, ARRAYSIZE(apsOutput)); ++i)
+	// copy to postfix tokens
+	for (int i = 0; i < SizeTokenPostfix; ++i)
 	{
 		if (!apsOutput[i])
 			break;
 
-		m_Log.LogCustom("", "", "%s ", apsOutput[i]->m_aToken);
+		papsTokenPostfix[i] = apsOutput[i];
 	}
-
-	m_Log.Log("");
-#endif
 
 	return OK;
 }
@@ -581,32 +599,34 @@ int CMainLogic::PushToStackTop(S_TOKEN **papsTarget, size_t SizeStack, S_TOKEN* 
 	return ERROR;
 }
 
-int CMainLogic::PopStack(S_TOKEN** papsSource, size_t SizeSource, S_TOKEN** papsDest, size_t SizeDest, E_OPTYPES OpStopAndDiscard, bool StopAtFirstOperatorAndDiscard)
+int CMainLogic::PopStack(S_TOKEN** papsSource, size_t SizeSource, S_TOKEN** papsDest, size_t SizeDest, E_OPTYPES OpStopAndDiscard, int PopCount)
 {
 	S_TOKEN** ppsOutputSlotFree = 0;
-	S_TOKEN* psSourceItemTop = 0;
-	S_TOKEN* psCurrentSourceItem = 0;
+	S_TOKEN** ppsSourceItemTop = 0;
+	size_t sizeSource = GetStackSize(papsSource, SizeSource);
+	int amountPopped = 0;
 
-	for (int i = 0; i < SizeSource; ++i)
+	if (sizeSource <= 0)
 	{
-		psCurrentSourceItem = papsSource[i];
+		m_Log.LogErr("Stack size <= 0");
+		return ERROR;
+	}
 
-		if (!psCurrentSourceItem)
-			break;
-
+	for (int i = sizeSource - 1; i >= 0; --i)
+	{
 		// stop at the stopping-operator if one is given
-		if (OpStopAndDiscard != OPT_INVALID && psCurrentSourceItem->m_psOperator->m_OpType == OpStopAndDiscard)
+		if (OpStopAndDiscard != OPT_INVALID && papsSource[i]->m_psOperator->m_OpType == OpStopAndDiscard)
 		{
 			// discard current token
-			DiscardStackItem(&psCurrentSourceItem);
+			DiscardStackItem(&papsSource[i]);
 
 			// stop popping
 			break;
 		}
 
 		// transfer from source to output
-		psSourceItemTop = GetStackItemTop(papsSource, SizeSource);
-		if (!psSourceItemTop)
+		ppsSourceItemTop = GetStackItemTop(papsSource, SizeSource);
+		if (!ppsSourceItemTop)
 		{
 			m_Log.LogErr("Getting stack item top for popping stack source %d", i);
 			return ERROR;
@@ -619,32 +639,34 @@ int CMainLogic::PopStack(S_TOKEN** papsSource, size_t SizeSource, S_TOKEN** paps
 			return ERROR;
 		}
 
-		*ppsOutputSlotFree = psSourceItemTop;
+		*ppsOutputSlotFree = *ppsSourceItemTop;
 
 		// discard top source item
-		DiscardStackItem(&psSourceItemTop);
+		DiscardStackItem(ppsSourceItemTop);
+
+		amountPopped++;
 
 		// stop popping after first operator
-		if (StopAtFirstOperatorAndDiscard)
+		if (PopCount >= 1 && amountPopped >= PopCount)
 			break;
 	}
 
 	return OK;
 }
 
-CMainLogic::S_TOKEN* CMainLogic::GetStackItemTop(S_TOKEN **papsTarget, size_t SizeStack)
+CMainLogic::S_TOKEN** CMainLogic::GetStackItemTop(S_TOKEN **papsTarget, size_t SizeStack)
 {
-	S_TOKEN* psExisting = NULL;
+	S_TOKEN** ppsExisting = NULL;
 
 	for (int i = 0; i < SizeStack; ++i)
 	{
 		if (!papsTarget[i])
-			return psExisting;
+			return ppsExisting;
 
-		psExisting = papsTarget[i];
+		ppsExisting = &papsTarget[i];
 	}
 
-	return psExisting;
+	return ppsExisting;
 }
 
 CMainLogic::S_TOKEN** CMainLogic::GetStackSlotFree(S_TOKEN **papsTarget, size_t SizeStack)
@@ -660,7 +682,9 @@ CMainLogic::S_TOKEN** CMainLogic::GetStackSlotFree(S_TOKEN **papsTarget, size_t 
 
 int CMainLogic::DiscardStackItem(S_TOKEN** ppsTarget)
 {
+	// null target
 	*ppsTarget = NULL;
+
 	return OK;
 }
 
@@ -757,254 +781,305 @@ CMainLogic::S_INPUT* CMainLogic::CopyInputWithoutPrefix(const char *pToken, char
 
 int CMainLogic::CheckSyntax(S_TOKEN* pasToken, size_t AmountTokens)
 {
-	// syntax is always gud :)
-	return OK;
-
-	/*
-	int prevOpFlags = 0;
-	S_TOKEN *psPrevious = 0;
 	S_TOKEN* psCurrent = 0;
-	U64 synflags = 0;
+	S_TOKEN* psPrevious = 0;
+	int bracketsOpen = 0;
+	int bracketsClose = 0;
 
-	// check token for token
 	for (int i = 0; i < AmountTokens; ++i)
 	{
-		// resets
 		psCurrent = &pasToken[i];
-		
+
 		if (i > 0)
 			psPrevious = &pasToken[i - 1];
-		
-		// check tokens who are operators
-		if (psCurrent->m_TokType == TOT_OPERATOR)
-		{
-			// first operator must not be combining
-			// however some combining operators double as input-modifying, keep that in mind
-			if (!psPrevious)
-			{
-				if ((GetOperatorFlags(psCurrent->m_OpType, OPFLAG_COMBINE) > 0) &&
-					(GetOperatorFlags(psCurrent->m_OpType, OPFLAG_MODIFYINP) == 0))
-				{
-					m_Log.LogErr("%d. token '%s', first token must not be a combining operator", i + 1, psCurrent->m_aToken);
-					return ERROR;
-				}
-			}
-			else// 2nd+ operators
-			{
-				// if previous operator was combining or modifies a input, the next token has to be an input
-				if ((GetOperatorFlags(psCurrent->m_OpType, prevOpFlags) & (OPFLAG_COMBINE || OPFLAG_MODIFYINP)) > 0)
-				{
-					m_Log.LogErr("%d. token '%s', input-combining or input-modifying operator must be followed by an input", i + 1, psCurrent->m_aToken);
-					return ERROR;
-				}
 
-				// last token must not be an operator
-				if (i >= AmountTokens - 1)
-				{
-					m_Log.LogErr("%d. token '%s', last token must not be a input-combining or input-modifying operator", i + 1, psCurrent->m_aToken);
-					return ERROR;
-				}
-			}
-
-			// prepare next loop
-			prevOpFlags = GetOperatorFlags(psCurrent->m_OpType, OPFLAG_ALL);
-		}
-		else if (psCurrent->m_TokType == TOT_INPUT)// check tokens who are inputs
+		// inputs
+		if (psCurrent->m_TokType == TOT_INPUT)
 		{
-			// first input
-			if (!psPrevious)
+			if (psPrevious)// 2nd+ token, start checking syntax
 			{
-				// everything allowed
-			}
-			else// 2nd+ input
-			{
-				// if previous token is an input, error
+				// if previous token is an input, input must not be followed by another input
 				if (psPrevious->m_TokType == TOT_INPUT)
 				{
 					m_Log.LogErr("%d. token '%s', input must not be followed by another input", i + 1, psCurrent->m_aToken);
 					return ERROR;
 				}
 			}
-
-			// prepare next loop
-			prevOpFlags = 0;
-		}
-
-		// prepare next loop
-		psPrevious = psCurrent;
-	}
-
-	return OK;*/
-}
-
-U64 CMainLogic::Calculate(S_TOKEN* pasToken, size_t AmountTokens)
-{
-	S_TOKEN asCalculation[CMAINLOGIC_CONSOLE_TOKENS];
-	S_TOKEN asTempCalculation[ARRAYSIZE(asCalculation)];
-	S_TOKEN sTempToken;
-	bool anyCalculationsLeft = true;
-	U64 result = 0;
-	int firstInpIndex = 0;
-	int firstOperatorIndex = 0;
-	int secondInpIndex = 0;
-	int secondOperatorIndex = 0;
-	int amountCurrentTokens = AmountTokens;
-	U64 tempResult = 0;
-	int amountTokensDisposed = 0;
-
-	// reset structs
-	memset(asCalculation, 0, ARRAYSIZE(asCalculation) * sizeof(S_TOKEN));
-
-	// copy original tokens
-	for (int i = 0; i < AmountTokens; ++i)
-		asCalculation[i] = pasToken[i];
-
-	// calculation loop, simple from left to right
-	while (1)
-	{
-		// repeat calculation until only one input is left
-		for (int i = 0; i < amountCurrentTokens; ++i)
+		}// operators
+		else if (psCurrent->m_TokType == TOT_OPERATOR)
 		{
-			// reset values
-			memset(asTempCalculation, 0, ARRAYSIZE(asTempCalculation) * sizeof(S_TOKEN));
-			firstInpIndex = -1;
-			firstOperatorIndex = -1;
-			secondInpIndex = -1;
-			secondOperatorIndex = -1;
-			amountTokensDisposed = 0;
-
-			// determine input and operator indices
-			for (int index = 0; index < amountCurrentTokens; ++index)
+			// bracket checker
+			if (GetOpFlags(psCurrent, OPF_ENCASING))
 			{
-				// determine first input index if not yet found
-				if (firstInpIndex < 0)
+				// bracket counter
+				if (GetOpFlags(psCurrent, OPF_ENCASING_START))
 				{
-					if (asCalculation[index].m_TokType == TOT_INPUT)
+					bracketsOpen++;
+				}
+				else if (GetOpFlags(psCurrent, OPF_ENCASING_STOP))
+				{
+					// closing bracket only allowed if corresponding opening bracket is given
+					if (bracketsOpen <= bracketsClose)
 					{
-						firstInpIndex = index;
+						m_Log.LogErr("%d. token '%s', no corresponding opening bracket", i + 1, psCurrent->m_aToken);
+						return ERROR;
+					}
 
-						// see if an operator is put in front
-						if (index > 0)
-							firstOperatorIndex = index - 1;
+					bracketsClose++;
+				}
+			}
+
+			if (psPrevious)// 2nd+ token is an operator
+			{
+				// only calculating, combining operators allowed as first token
+				if (!(CheckOpFlagsStrict(psCurrent, OPF_CALCULATING | OPF_COMBINING)) && !GetOpFlags(psCurrent, OPF_ENCASING))
+				{
+					m_Log.LogErr("%d. token '%s', this operator is only allowed as first token", i + 1, psCurrent->m_aToken);
+					return ERROR;
+				}
+
+				// if previous token was an operator
+				if (psPrevious->m_TokType == TOT_OPERATOR)
+				{
+					// if current operator is calculating
+					if (CheckOpFlagsStrict(psCurrent, OPF_CALCULATING))
+					{
+						// if previous operator was also calculating, calculating operator must not be followed by another calculating operator
+						if (CheckOpFlagsStrict(psPrevious, OPF_CALCULATING))
+						{
+							m_Log.LogErr("%d. token '%s', calculating operator must not be followed by another calculating operator", i + 1, psCurrent->m_aToken);
+							return ERROR;
+						}
+					}
+
+					// if previous operator was an opening bracket, opening bracket can only be followed by another opening bracket
+					if (GetOpFlags(psPrevious, OPF_ENCASING_START) && !GetOpFlags(psCurrent, OPF_ENCASING_START))
+					{
+						m_Log.LogErr("%d. token '%s', opening bracket can only be followed by another opening bracket", i + 1, psCurrent->m_aToken);
+						return ERROR;
 					}
 				}
-				else if (secondInpIndex < 0)// determine second input index if not yet found
+			}
+			else// 1st token is an operator
+			{
+				// only calculating, non-combining operators allowed as first token
+				if (!(CheckOpFlagsStrict(psCurrent, OPF_CALCULATING) && CheckOpFlagsMissing(psCurrent, OPF_COMBINING)) && !GetOpFlags(psCurrent, OPF_ENCASING))
 				{
-					if (index != firstInpIndex && asCalculation[index].m_TokType == TOT_INPUT)
-					{
-						secondInpIndex = index;
+					m_Log.LogErr("%d. token '%s', this operator is not allowed as first token", i + 1, psCurrent->m_aToken);
+					return ERROR;
+				}
+			}
+		}
+		else
+		{
+			m_Log.LogErr("%d. token invalid token type", i + 1);
+			return ERROR;
+		}
+	}
 
-						// determine second operator index
-						secondOperatorIndex = index - 1;
-					}
+	// aftermath
+	// brackets must match
+	if (bracketsOpen != bracketsClose)
+	{
+		m_Log.LogErr("not all brackets are matched (%d open, %d close)", bracketsOpen, bracketsClose);
+		return ERROR;
+	}
+
+	// last token must not be a calculating operator
+	if (psCurrent && psCurrent->m_TokType == TOT_OPERATOR && GetOpFlags(psCurrent, OPF_CALCULATING))
+	{
+		m_Log.LogErr("last token '%s', operator must be followed by input", psCurrent->m_aToken);
+		return ERROR;
+	}
+
+	return OK;
+}
+
+bool CMainLogic::CheckOpFlagsStrict(S_TOKEN *psToken, int OpFlags)
+{
+	if ((psToken->m_psOperator->m_OpFlags & OpFlags) == OpFlags)
+		return true;
+
+	return false;
+}
+
+int CMainLogic::GetOpFlags(S_TOKEN* psToken, int OpFlags)
+{
+	return (psToken->m_psOperator->m_OpFlags & OpFlags);
+}
+
+bool CMainLogic::CheckOpFlagsMissing(S_TOKEN *psToken, int OpFlags)
+{
+	if ((psToken->m_psOperator->m_OpFlags & OpFlags))
+		return false;
+
+	return true;
+}
+
+U64 CMainLogic::Calculate(S_TOKEN** papsTokenPostfix, size_t SizeTokenPostfix)
+{
+	int retval = 0;
+	int topIndex = 0;
+	S_TOKEN* psCurrent = 0;
+	S_TOKEN* apsStack[CMAINLOGIC_CONSOLE_TOKENS] = { 0 };
+	S_TOKEN* psOp1 = 0;
+	S_TOKEN* psOp2 = 0;
+	U64 tempResult = 0;
+
+	// necessary because only one token given would result in 0 being the result
+	tempResult = papsTokenPostfix[0]->m_Number;
+
+	for (int i = 0; i < SizeTokenPostfix; ++i)
+	{
+		if (!papsTokenPostfix[i])
+			break;
+
+		psCurrent = papsTokenPostfix[i];
+
+		// Iterate over the string from left to right and do the following
+		// Rule 1: If the current element is an operand, push it into the stack
+		if (psCurrent->m_TokType == TOT_INPUT)
+		{
+			retval = PushToStackTop(apsStack, ARRAYSIZE(apsStack), psCurrent);
+			if (retval != OK)
+				return ERROR;
+		}// Otherwise, if the current element is an operator, do the following
+		else if (psCurrent->m_TokType == TOT_OPERATOR)
+		{
+			// Rule 2: Once an operator is received, pop the two topmost elements and evaluate them and push the result in the stack again.
+			// Rule 2 Continued: Pop an element from stack, let it be op1. Pop another element from stack, let it be op2. Compute the result of op2 / op1, and push it into the stack.
+			
+			// determine top stack index
+			topIndex = -1;
+
+			for (int t = 0; t < ARRAYSIZE(apsStack) - 1; ++t)
+			{
+				if (!apsStack[t])
+				{
+					topIndex = t - 1;
+					break;
+				}
+			}
+
+			if (topIndex < 0)
+			{
+				m_Log.LogErr("failed to determine top calculation stack index");
+				return ERROR;
+			}
+			else if (topIndex < 1)
+			{
+				if (psCurrent->m_psOperator->m_OpType == OPT_INVERT || psCurrent->m_psOperator->m_OpType == OPT_REVERT)
+				{
+					psOp1 = apsStack[topIndex];
+
+					tempResult = CombineValues(psOp1, NULL, psCurrent->m_psOperator->m_OpType);
+
+					// remove top operator
+					apsStack[topIndex] = 0;
 				}
 				else
 				{
-					break;
+					m_Log.LogErr("only one operator is on the stack, need two");
+					return ERROR;
 				}
 			}
-
-			if (firstInpIndex >= 0)
-				amountTokensDisposed++;
-
-			if (firstOperatorIndex >= 0)
-				amountTokensDisposed++;
-
-			if (secondInpIndex >= 0)
-				amountTokensDisposed++;
-
-			if (secondOperatorIndex >= 0)
-				amountTokensDisposed++;
-
-			//m_Log.Log("Disposed %d, %d, %d, %d, %d", amountTokensDisposed, firstInpIndex, firstOperatorIndex, secondInpIndex, secondOperatorIndex);
-
-			tempResult = asCalculation[firstInpIndex].m_Number;
-
-			// calculate if two inputs have been found, otherwise the result has been seen
-			if (secondInpIndex < 0)
+			else
 			{
-				anyCalculationsLeft = false;
-			}
-			else// calculate
-			{
-				U64 firstInp = asCalculation[firstInpIndex].m_Number;
-				U64 secondInp = asCalculation[secondInpIndex].m_Number;
-				E_OPTYPES firstOperatorType = OPT_INVALID;
-				E_OPTYPES secondOperatorType = OPT_INVALID;
+				psOp1 = apsStack[topIndex];
+				psOp2 = apsStack[topIndex - 1];
 
-				// operator types (first one does not have to have a operator)
-				if (firstOperatorIndex >= 0)
-					firstOperatorType = asCalculation[firstOperatorIndex].m_psOperator->m_OpType;
+				// remove top operator
+				apsStack[topIndex] = 0;
 
-				secondOperatorType = asCalculation[secondOperatorIndex].m_psOperator->m_OpType;
+				// calculate result "operator2 <operand> operator1"
+				tempResult = CombineValues(psOp1, psOp2, psCurrent->m_psOperator->m_OpType);
 
-				// modify inputs
-				firstInp = ModifyInputByOperator(firstInp, firstOperatorType);
-				//secondInp = ModifyInputByOperator(secondInp, 0, secondOperatorType);
-
-				// calculate
-				switch (secondOperatorType)
-				{
-				case OPT_ADD:
-					tempResult = firstInp + secondInp;
-					break;
-
-				case OPT_SUBTRACT:
-					tempResult = firstInp - secondInp;
-					break;
-
-				case OPT_AND:
-					tempResult = firstInp & secondInp;
-					break;
-
-				case OPT_OR:
-					tempResult = firstInp | secondInp;
-					break;
-
-				case OPT_XOR:
-					tempResult = firstInp ^ secondInp;
-					break;
-
-				case OPT_INVERT:
-					tempResult = firstInp + secondInp;
-					break;
-
-				//case OPT_REVERT:
-				//	tempResult = firstInp + secondInp;
-				//	break;
-				}
-
-				break;
+				// second from top becomes new operator
+				apsStack[topIndex - 1]->m_Number = tempResult;
 			}
 		}
-
-		// assign new token
-		memset(&sTempToken, 0, sizeof(sTempToken));
-
-		sTempToken.m_Number = tempResult;
-		sTempToken.m_TokType = TOT_INPUT;
-
-		// crop calculation
-		asTempCalculation[0] = sTempToken;
-
-		for (int temp = 1; temp < (amountCurrentTokens - amountTokensDisposed); ++temp)
+		else
 		{
-			asTempCalculation[temp] = asCalculation[temp + amountTokensDisposed - 1];
+			m_Log.LogErr("Invalid token type %d", psCurrent->m_TokType);
+			return ERROR;
 		}
-
-		memcpy(asCalculation, asTempCalculation, sizeof(asTempCalculation[0]) * ARRAYSIZE(asTempCalculation));
-
-		amountCurrentTokens -= amountTokensDisposed;
-
-		if (amountCurrentTokens <= 0)
-			anyCalculationsLeft = false;
-
-		// check if the calculation has finished
-		if (!anyCalculationsLeft)
-			break;
 	}
 
-	result = tempResult;
+	return tempResult;
+}
+
+U64 CMainLogic::CombineValues(S_TOKEN* psOperator1, S_TOKEN* psOperator2, E_OPTYPES OpType)
+{
+	U64 result = 0;
+	U64 num1 = 0;;
+	U64 num2 = 0;
+	int spaceOccupied = 0;
+	int byteSize = 0;
+	U64 byteMask = 0;
+
+	if (psOperator1)
+		num1 = psOperator1->m_Number;
+
+	if (psOperator2)
+		num2 = psOperator2->m_Number;
+
+	switch (OpType)
+	{
+	case OPT_ADD:
+		result = num2 + num1;
+		break;
+
+	case OPT_SUBTRACT:
+		result = num2 - num1;
+		break;
+
+	case OPT_MULTIPLY:
+		result = num2 * num1;
+		break;
+
+	case OPT_DIVIDE:
+		result = num2 / num1;
+		break;
+
+	case OPT_EXPONENTIAL:
+		result = CCore::PowULL(num2, num1);
+		break;
+
+	case OPT_MODULO:
+		result = num2 % num1;
+		break;
+
+	case OPT_AND:
+		result = num2 & num1;
+		break;
+
+	case OPT_OR:
+		result = num2 | num1;
+		break;
+
+	case OPT_XOR:
+		result = num2 ^ num1;
+		break;
+
+	case OPT_LSHIFT:
+		result = num2 << num1;
+		break;
+
+	case OPT_RSHIFT:
+		result = num2 >> num1;
+		break;
+
+	case OPT_INVERT:
+		byteSize = CCore::GetByteSize(num1);
+		byteMask = (0xFFFFFFFFFFFFFFFF >> (64 - byteSize * 8));
+		result = (~num1) & byteMask;
+		break;
+
+	case OPT_REVERT:
+		byteSize = CCore::GetByteSize(num1);
+		result = CCore::NumRevert(num1, byteSize);
+		break;
+	}
 
 	return result;
 }
@@ -1232,6 +1307,8 @@ int CMainLogic::InputToString(U64 Number, E_INPTYPES InpType, char* pResult, siz
 	int digit = 0;
 	char aDigit[2] = { 0 };
 	int lastPosRelevant = 0;
+	int byteSize = 0;
+	U64 numCopy = Number;
 
 	switch (InpType)
 	{
@@ -1292,7 +1369,17 @@ int CMainLogic::InputToString(U64 Number, E_INPTYPES InpType, char* pResult, siz
 		pResult[i] = aDigit[0];
 	}
 
-	pResult[lastPosRelevant + 1] = '\0';
+	// binary has automatic byte size and shows leading zeroes
+	if (InpType == INT_BINARY)
+	{
+		byteSize = CCore::GetByteSize(numCopy);
+		pResult[byteSize * 8] = '\0';
+	}
+	else
+	{
+		pResult[lastPosRelevant + 1] = '\0';
+	}
+
 	CCore::StringRevert(pResult);
 
 	return OK;
@@ -1438,6 +1525,7 @@ CMainLogic::E_COMRETVALS CMainLogic::ComHelp(E_COMMANDS ID)
 {
 	char aParameters[CMAINLOGIC_MAX_LEN_COMHELP_BUFFERS] = { 0 };
 	char aExample[CMAINLOGIC_MAX_LEN_COMHELP_BUFFERS] = { 0 };
+	char aOpInfo[CMAINLOGIC_OPINFO_LENGTH] = { 0 };
 	char aOpAssoc[12] = { 0 };
 	S_INPUT* psInput = 0;
 	S_OPERATOR* psOperator = 0;
@@ -1512,7 +1600,11 @@ CMainLogic::E_COMRETVALS CMainLogic::ComHelp(E_COMMANDS ID)
 			else
 				snprintf(aOpAssoc, ARRAYSIZE(aOpAssoc), "invalid");
 
-			m_Log.Log(CMAINLOGIC_COMHELP_PREFIX "%s...\tprecedence: %d, associativity: %s", psOperator->m_aOperator, psOperator->m_OpPrecedence, aOpAssoc);
+			memset(aOpInfo, 0, ARRAYSIZE(aOpInfo));
+			if (strnlen(psOperator->m_aInfo, ARRAYSIZE(psOperator->m_aInfo)) > 0)
+				snprintf(aOpInfo, ARRAYSIZE(aOpInfo), " (%s)", psOperator->m_aInfo);
+
+			m_Log.Log(CMAINLOGIC_COMHELP_PREFIX "%s...\tprecedence: %d, associativity: %s%s", psOperator->m_aOperator, psOperator->m_OpPrecedence, aOpAssoc, aOpInfo);
 		}
 		m_Log.Log(CMAINLOGIC_COMHELP_PREFIX);
 

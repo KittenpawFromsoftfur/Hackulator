@@ -7,21 +7,9 @@
 #include "mainlogic.h"
 
 /* TODO
-	Implement infix-to-postfix function (shunting yard algorithm)
-	Implement postfix-notation-resolver (reverse polish notation)
-	Result with n leading zeroes (settings)
-	Result with Datatype 1-8 Byte (settigns)
-	Result with signed 2's complement (settings)
-	help
-		(or readme) list operator priority and associativity
-		should explain every single aspect of the hackulator (help file cause too complicated? generatehelp?)
-	Readme with help and thanks
-		https://en.wikipedia.org/wiki/Reverse_Polish_notation
-		https://en.wikipedia.org/wiki/Shunting_yard_algorithm
-		https://mathcenter.oxford.emory.edu/site/cs171/shuntingYardAlgorithm/
-		http://csis.pace.edu/~wolf/CS122/infix-postfix.htm
-		https://en.wikipedia.org/wiki/Operator_associativity
-		https://en.wikipedia.org/wiki/Operators_in_C_and_C%2B%2B#Operator_precedence
+	Infix to postfix: Rule 7 is not implemented correctly yet. '3+4*2/(1-5)"2"3' will print wrong postfix result.
+	(2+3+4) --> Error: only one operator is on the stack, need two
+	Leading zeroes not only for binary, also adjustable.
 */
 
 int main(int argc, char *argv[])

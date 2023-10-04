@@ -224,6 +224,50 @@ U64 CCore::PowULL(U64 Base, int Exponent)
 	return value;
 }
 
+int CCore::GetByteSize(U64 Number)
+{
+	int spaceOccupied = 0;
+	U64 byteSize = 0;
+
+	// determine byte size
+	for (int i = 0; i < sizeof(U64) * 8; ++i)
+	{
+		if ((Number & (1LLU << i)) > 0)
+			spaceOccupied = i + 1;
+	}
+
+	// cast to right byte size
+	if (spaceOccupied <= 8)
+		byteSize = 1;
+	else if (spaceOccupied <= 16)
+		byteSize = 2;
+	else if (spaceOccupied <= 32)
+		byteSize = 4;
+	else
+		byteSize = 8;
+
+	return byteSize;
+}
+
+U64 CCore::NumRevert(U64 Number, int ByteSize)
+{
+	U64 result = 0;
+	int resultStartPoint = 0;
+	int resultPos = 0;
+
+	resultStartPoint = ByteSize * 8 - 1;
+
+	for (int i = 0; i < ByteSize * 8; ++i)
+	{
+		if ((Number & (1LLU << i)) > 0)
+			result |= (1LLU << (resultStartPoint - resultPos));
+
+		resultPos++;
+	}
+
+	return result;
+}
+
 int GetFlags(int Value, int Flags)
 {
 	return (Value | Flags);

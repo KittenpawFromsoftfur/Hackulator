@@ -37,6 +37,8 @@ public:
     static bool CharContains(char Char, const char* pCharacters);
     static bool CheckFileExists(const char* pFilePath);
     static U64 PowULL(U64 Base, int Exponent);
+    static int GetByteSize(U64 Number);
+    static U64 NumRevert(U64 Number, int ByteSize);
     static int GetFlags(int Value, int Flags);
     static int DetachThreadSafely(std::thread* pThread);
     static void Exit(int ExitCode);

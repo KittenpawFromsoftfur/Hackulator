@@ -4,8 +4,6 @@
 #include "core.h"
 #include "savefile.h"
 
-#define DEBUG
-
 // help
 #define CMAINLOGIC_MAX_LEN_COMHELP_BUFFERS 256
 #define CMAINLOGIC_COMHELP_HEADER_HELP					"<<<<<<<<<<<<<<<<<<<<<<<<< HELP >>>>>>>>>>>>>>>>>>>>>>>>>"
@@ -25,6 +23,7 @@
 #define CMAINLOGIC_INPSHORTLABELS_LENGTH 2
 #define CMAINLOGIC_OPERATORS_LENGTH CMAINLOGIC_INPPREFIXES_LENGTH
 #define CMAINLOGIC_OPLABELS_LENGTH CMAINLOGIC_INPLABELS_LENGTH
+#define CMAINLOGIC_OPINFO_LENGTH 256
 #define CMAINLOGIC_RESULTORDER_LEN 24
 
 // input and tokenization
@@ -56,15 +55,15 @@
 #define CMAINLOGIC_OPLABEL_DIVIDE			"divide"
 #define CMAINLOGIC_OPLABEL_EXPONENTIAL		"exponential"
 #define CMAINLOGIC_OPLABEL_MODULO			"modulo"
-#define CMAINLOGIC_OPLABEL_AND				"bitwise and"
-#define CMAINLOGIC_OPLABEL_OR				"bitwise or"
-#define CMAINLOGIC_OPLABEL_XOR				"bitwise xor"
-#define CMAINLOGIC_OPLABEL_LSHIFT			"bitwise left shift"
-#define CMAINLOGIC_OPLABEL_RSHIFT			"bitwise right shift"
+#define CMAINLOGIC_OPLABEL_AND				"bitwise_and"
+#define CMAINLOGIC_OPLABEL_OR				"bitwise_or"
+#define CMAINLOGIC_OPLABEL_XOR				"bitwise_xor"
+#define CMAINLOGIC_OPLABEL_LSHIFT			"bitwise_left_shift"
+#define CMAINLOGIC_OPLABEL_RSHIFT			"bitwise_right_shift"
 #define CMAINLOGIC_OPLABEL_INVERT			"invert"
 #define CMAINLOGIC_OPLABEL_REVERT			"revert"
-#define CMAINLOGIC_OPLABEL_BRACKET_OPEN		"bracket open"
-#define CMAINLOGIC_OPLABEL_BRACKET_CLOSE	"bracket close"
+#define CMAINLOGIC_OPLABEL_BRACKET_OPEN		"bracket_open"
+#define CMAINLOGIC_OPLABEL_BRACKET_CLOSE	"bracket_close"
 
 // default values
 // input prefixes
@@ -187,6 +186,15 @@ public:
 		OPA_RIGHT,
 	};
 
+	enum E_OPFLAGS
+	{
+		OPF_CALCULATING =		(1 << 0),// calculating such as +, -, $. But not (, )
+		OPF_COMBINING =			(1 << 1),// combining 2 inputs such as +, -, *. But not $, ~
+		OPF_ENCASING =			(1 << 2),// encasing such as (, )
+		OPF_ENCASING_START =	(1 << 3),// encasing start such as (
+		OPF_ENCASING_STOP =		(1 << 4),// encasing stop such as )
+	};
+
 	enum E_TOKTYPES
 	{
 		TOT_INVALID,
@@ -235,6 +243,8 @@ public:
 		char m_aLabel[CMAINLOGIC_OPLABELS_LENGTH];
 		E_OPPRECEDENCE m_OpPrecedence;
 		E_OPASSOCIATIVITY m_OpAssociativity;
+		int m_OpFlags;
+		char m_aInfo[CMAINLOGIC_OPINFO_LENGTH];
 	}S_OPERATOR;
 
 	typedef struct
@@ -256,16 +266,20 @@ public:
 	int ConvertInputToToken(const char *pToken, S_TOKEN *psToken);
 	S_INPUT* CopyInputWithoutPrefix(const char* pToken, char* pContent, size_t LenContent, bool *pWasPrefixed);
 	int ExecuteCommand(S_COMMAND *psCommand, S_INPUTTOKENS *psInputTokens);
-	int InfixToPostfix(S_TOKEN *pasToken, size_t AmountTokens);
+	int InfixToPostfix(S_TOKEN* pasToken, size_t AmountTokens, S_TOKEN** papsTokenPostfix, size_t SizeTokenPostfix);
 	int GetStackSize(S_TOKEN** papsTarget, size_t MaxSize);
 	bool IsStackEmpty(S_TOKEN** papsStack);
 	int PushToStackTop(S_TOKEN **papsTarget, size_t SizeStack, S_TOKEN* psToken);
-	int PopStack(S_TOKEN** papsSource, size_t SizeSource, S_TOKEN** papsDest, size_t SizeDest, E_OPTYPES OpStopAndDiscard = OPT_INVALID, bool StopAtFirstOperatorAndDiscard = false);
-	S_TOKEN* GetStackItemTop(S_TOKEN **papsTarget, size_t SizeStack);
+	int PopStack(S_TOKEN** papsSource, size_t SizeSource, S_TOKEN** papsDest, size_t SizeDest, E_OPTYPES OpStopAndDiscard = OPT_INVALID, int PopCount = 0);
+	S_TOKEN** GetStackItemTop(S_TOKEN **papsTarget, size_t SizeStack);
 	S_TOKEN** GetStackSlotFree(S_TOKEN **papsTarget, size_t SizeStack);
-	int DiscardStackItem(S_TOKEN **ppsTarget);
+	int DiscardStackItem(S_TOKEN** ppsTarget);
 	int CheckSyntax(S_TOKEN* pasToken, size_t AmountTokens);
-	U64 Calculate(S_TOKEN* pasToken, size_t AmountTokens);
+	bool CheckOpFlagsStrict(S_TOKEN* psToken, int OpFlags);
+	int GetOpFlags(S_TOKEN* psToken, int OpFlags);
+	bool CheckOpFlagsMissing(S_TOKEN* psToken, int OpFlags);
+	U64 Calculate(S_TOKEN** papsTokenPostfix, size_t SizeTokenPostfix);
+	U64 CombineValues(S_TOKEN* psOperator1, S_TOKEN* psOperator2, E_OPTYPES OpType);
 	void PrintResult(U64 Result);
 	U64 ModifyInputByOperator(U64 Number, E_OPTYPES OpType);
 	bool CheckInputPrefixCollisions(const char* pPrefix, S_INPUT** ppsInputColliding);
@@ -302,17 +316,17 @@ public:
 	CSaveFile m_SaveFile;
 	S_COMMAND m_asCommands[AMOUNT_COMMANDS] = 
 	{
-		{ COM_HELP,				"help",					"Lists this help",															"",																											"" },
-		{ COM_SET_INPUTFORMAT,	"set_inputformat",		"Sets the default input format (when no prefix is stated)",					"<Input format label (see below \"" CMAINLOGIC_COMHELP_HEADER_INPPREFIXES_TEXT "\")>",						CMAINLOGIC_INPLABEL_HEXADECIMAL },
-		{ COM_SET_INPUTPREFIX,	"set_inputprefix",		"Changes the prefix of an input format to your preferred string",			"<Input format label (see below \"" CMAINLOGIC_COMHELP_HEADER_INPPREFIXES_TEXT "\")> <string>",				CMAINLOGIC_INPLABEL_OCTAL " 0w" },
-		{ COM_SET_OPERATOR,		"set_operator",			"Changes an operator to your preferred string",								"<Operator label (see below \"" CMAINLOGIC_COMHELP_HEADER_OPERATORS_TEXT "\")> <string>",					CMAINLOGIC_OPLABEL_EXPONENTIAL " ^" },
-		{ COM_SET_RESULTORDER,	"set_resultorder",		"Sets the order of results (not listed = not visible)",						"<One or more input format short names (see below \"" CMAINLOGIC_COMHELP_HEADER_INPPREFIXES_TEXT "\")>",	CMAINLOGIC_INPSHORTLABEL_DECIMAL CMAINLOGIC_INPSHORTLABEL_HEXADECIMAL CMAINLOGIC_INPSHORTLABEL_BINARY },
-		{ COM_SET_RESPREFIXVIS,	"set_resultprefixvis",	"Sets the visibility of prefixes on results (not listed = not visible)",	"<One or more input format short names (see below \"" CMAINLOGIC_COMHELP_HEADER_INPPREFIXES_TEXT "\")>",	CMAINLOGIC_INPSHORTLABEL_DECIMAL CMAINLOGIC_INPSHORTLABEL_BINARY },
-		{ COM_SET_AUTOSAVE,		"set_autosave",			"Enables or disables auto saving of settings",								"<on/off>",																									"off" },
-		{ COM_SAVE,				"save",					"Saves the current settings",												"",																											"" },
-		{ COM_RESETSETTINGS,	"reset_settings",		"Resets the settings to their defaults",									"",																											"" },
-		{ COM_CLEARSCREEN,		"clear",				"Clears the screen",														"",																											"" },
-		{ COM_EXIT,				"exit",					"Exits the program",														"",																											"" },
+		{ COM_HELP,				"help",					"Lists this help",																		"",																											"" },
+		{ COM_SET_INPUTFORMAT,	"set_inputformat",		"Sets the default input format (when no prefix is stated)",								"<Input format label (see below \"" CMAINLOGIC_COMHELP_HEADER_INPPREFIXES_TEXT "\")>",						CMAINLOGIC_INPLABEL_HEXADECIMAL },
+		{ COM_SET_INPUTPREFIX,	"set_inputprefix",		"Changes the prefix of an input format to your preferred string",						"<Input format label (see below \"" CMAINLOGIC_COMHELP_HEADER_INPPREFIXES_TEXT "\")> <string>",				CMAINLOGIC_INPLABEL_OCTAL " 0w" },
+		{ COM_SET_OPERATOR,		"set_operator",			"Changes an operator to your preferred string",											"<Operator label (see below \"" CMAINLOGIC_COMHELP_HEADER_OPERATORS_TEXT "\")> <string>",					CMAINLOGIC_OPLABEL_EXPONENTIAL " ^" },
+		{ COM_SET_RESULTORDER,	"set_resultorder",		"Sets the order of results (not listed = not visible)",									"<One or more input format short names (see below \"" CMAINLOGIC_COMHELP_HEADER_INPPREFIXES_TEXT "\")>",	CMAINLOGIC_INPSHORTLABEL_DECIMAL CMAINLOGIC_INPSHORTLABEL_HEXADECIMAL CMAINLOGIC_INPSHORTLABEL_BINARY },
+		{ COM_SET_RESPREFIXVIS,	"set_resultprefixvis",	"Sets the visibility of prefixes on results (not listed = not visible)",				"<One or more input format short names (see below \"" CMAINLOGIC_COMHELP_HEADER_INPPREFIXES_TEXT "\")>",	CMAINLOGIC_INPSHORTLABEL_DECIMAL CMAINLOGIC_INPSHORTLABEL_BINARY },
+		{ COM_SET_AUTOSAVE,		"set_autosave",			"Enables or disables auto saving of settings (saves whenever a setting is changed)",	"<on/off>",																									"off" },
+		{ COM_SAVE,				"save",					"Manually saves the current settings",													"",																											"" },
+		{ COM_RESETSETTINGS,	"reset_settings",		"Resets the settings to their defaults",												"",																											"" },
+		{ COM_CLEARSCREEN,		"clear",				"Clears the screen",																	"",																											"" },
+		{ COM_EXIT,				"exit",					"Exits the program",																	"",																											"" },
 	};
 	S_INPUT m_asInputs[AMOUNT_INPTYPES] =
 	{
@@ -326,22 +340,22 @@ public:
 	};
 	S_OPERATOR m_asOperators[AMOUNT_OPTYPES] =
 	{
-		{ OPT_INVALID,			"", "invalid",							OPP_INVALID,		OPA_INVALID },
-		{ OPT_ADD,				"", CMAINLOGIC_OPLABEL_ADD,				OPP_ADD,			OPA_LEFT },
-		{ OPT_SUBTRACT,			"", CMAINLOGIC_OPLABEL_SUBTRACT,		OPP_SUBTRACT,		OPA_LEFT },
-		{ OPT_MULTIPLY,			"", CMAINLOGIC_OPLABEL_MULTIPLY,		OPP_MULTIPLY,		OPA_LEFT },
-		{ OPT_DIVIDE,			"", CMAINLOGIC_OPLABEL_DIVIDE,			OPP_DIVIDE,			OPA_LEFT },
-		{ OPT_EXPONENTIAL,		"", CMAINLOGIC_OPLABEL_EXPONENTIAL,		OPP_EXPONENTIAL,	OPA_RIGHT },
-		{ OPT_MODULO,			"", CMAINLOGIC_OPLABEL_MODULO,			OPP_MODULO,			OPA_LEFT },
-		{ OPT_AND,				"", CMAINLOGIC_OPLABEL_AND,				OPP_AND,			OPA_LEFT },
-		{ OPT_OR,				"", CMAINLOGIC_OPLABEL_OR,				OPP_OR,				OPA_LEFT },
-		{ OPT_XOR,				"", CMAINLOGIC_OPLABEL_XOR,				OPP_XOR,			OPA_LEFT },
-		{ OPT_LSHIFT,			"", CMAINLOGIC_OPLABEL_LSHIFT,			OPP_LSHIFT,			OPA_LEFT },
-		{ OPT_RSHIFT,			"", CMAINLOGIC_OPLABEL_RSHIFT,			OPP_RSHIFT,			OPA_LEFT },
-		{ OPT_INVERT,			"", CMAINLOGIC_OPLABEL_INVERT,			OPP_INVERT,			OPA_NONE },
-		{ OPT_REVERT,			"", CMAINLOGIC_OPLABEL_REVERT,			OPP_REVERT,			OPA_NONE },
-		{ OPT_BRACKET_OPEN,		"", CMAINLOGIC_OPLABEL_BRACKET_OPEN,	OPP_BRACKET_OPEN,	OPA_NONE },
-		{ OPT_BRACKET_CLOSE,	"", CMAINLOGIC_OPLABEL_BRACKET_CLOSE,	OPP_BRACKET_CLOSE,	OPA_NONE },
+		{ OPT_INVALID,			"", "invalid",							OPP_INVALID,		OPA_INVALID,	0,									"" },
+		{ OPT_ADD,				"", CMAINLOGIC_OPLABEL_ADD,				OPP_ADD,			OPA_LEFT,		OPF_CALCULATING | OPF_COMBINING,	"" },
+		{ OPT_SUBTRACT,			"", CMAINLOGIC_OPLABEL_SUBTRACT,		OPP_SUBTRACT,		OPA_LEFT,		OPF_CALCULATING | OPF_COMBINING,	"" },
+		{ OPT_MULTIPLY,			"", CMAINLOGIC_OPLABEL_MULTIPLY,		OPP_MULTIPLY,		OPA_LEFT,		OPF_CALCULATING | OPF_COMBINING,	"" },
+		{ OPT_DIVIDE,			"", CMAINLOGIC_OPLABEL_DIVIDE,			OPP_DIVIDE,			OPA_LEFT,		OPF_CALCULATING | OPF_COMBINING,	"" },
+		{ OPT_EXPONENTIAL,		"", CMAINLOGIC_OPLABEL_EXPONENTIAL,		OPP_EXPONENTIAL,	OPA_RIGHT,		OPF_CALCULATING | OPF_COMBINING,	"" },
+		{ OPT_MODULO,			"", CMAINLOGIC_OPLABEL_MODULO,			OPP_MODULO,			OPA_LEFT,		OPF_CALCULATING | OPF_COMBINING,	"" },
+		{ OPT_AND,				"", CMAINLOGIC_OPLABEL_AND,				OPP_AND,			OPA_LEFT,		OPF_CALCULATING | OPF_COMBINING,	"" },
+		{ OPT_OR,				"", CMAINLOGIC_OPLABEL_OR,				OPP_OR,				OPA_LEFT,		OPF_CALCULATING | OPF_COMBINING,	"" },
+		{ OPT_XOR,				"", CMAINLOGIC_OPLABEL_XOR,				OPP_XOR,			OPA_LEFT,		OPF_CALCULATING | OPF_COMBINING,	"" },
+		{ OPT_LSHIFT,			"", CMAINLOGIC_OPLABEL_LSHIFT,			OPP_LSHIFT,			OPA_LEFT,		OPF_CALCULATING | OPF_COMBINING,	"" },
+		{ OPT_RSHIFT,			"", CMAINLOGIC_OPLABEL_RSHIFT,			OPP_RSHIFT,			OPA_LEFT,		OPF_CALCULATING | OPF_COMBINING,	"" },
+		{ OPT_INVERT,			"", CMAINLOGIC_OPLABEL_INVERT,			OPP_INVERT,			OPA_NONE,		OPF_CALCULATING,					"Only usable as first token" },
+		{ OPT_REVERT,			"", CMAINLOGIC_OPLABEL_REVERT,			OPP_REVERT,			OPA_NONE,		OPF_CALCULATING,					"Only usable as first token" },
+		{ OPT_BRACKET_OPEN,		"", CMAINLOGIC_OPLABEL_BRACKET_OPEN,	OPP_BRACKET_OPEN,	OPA_NONE,		OPF_ENCASING | OPF_ENCASING_START,	"" },
+		{ OPT_BRACKET_CLOSE,	"", CMAINLOGIC_OPLABEL_BRACKET_CLOSE,	OPP_BRACKET_CLOSE,	OPA_NONE,		OPF_ENCASING | OPF_ENCASING_STOP,	"" },
 	};
 	char m_aASCIIDescriptions[34][32] =
 	{
