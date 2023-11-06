@@ -1,6 +1,8 @@
 # Hackulator
 This calculator in form of a windows console application is ideal for process hackers who need to add offsets together, perform left shift, binary calculations and the like.
+
 You can enter your calculation formula with various operators from the C-language such as + (add), % (modulo), & (bitwise and), << (bitwise left shift) and number formats such as binary, dual, octal, decimal, hexadecimal and ascii.
+
 The result can also be displayed in various number formats such as binary, dual, octal, decimal, hexadecimal and ascii.
 
 Hackulator is highly customizable, for example you can change the operators and number format prefixes to fit your desired string.
