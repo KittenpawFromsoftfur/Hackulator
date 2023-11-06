@@ -1,9 +1,9 @@
 # Hackulator
-This calculator in form of a windows console application is ideal for process hackers who need to add offsets together and perform other kinds of number manipulating calculations.
-You can enter your calculation formula with various operators from the C-language such as + (add), % (modulo), & (bitwise and), and number formats such as decimal, binary, hexadecimal, etc...
-The result will also be shown in various number formats such as binary, octal, hexadecimal, etc...
+This calculator in form of a windows console application is ideal for process hackers who need to add offsets together, perform left shift, binary calculations and the like.
+You can enter your calculation formula with various operators from the C-language such as + (add), % (modulo), & (bitwise and), << (bitwise left shift) and number formats such as binary, dual, octal, decimal, hexadecimal and ascii.
+The result can also be displayed in various number formats such as binary, dual, octal, decimal, hexadecimal and ascii.
 
-Hackulator is highly customizable, for example you can change the operators and number format prefixes to your desired string.
+Hackulator is highly customizable, for example you can change the operators and number format prefixes to fit your desired string.
 
 The following is the output of the 'help' function.
 ```
@@ -12,14 +12,14 @@ The following is the output of the 'help' function.
 > Input is unsigned 64 bit number.
 > All input is case insensitive.
 > Default input format (when no prefix is given): decimal
-> Result order: dxb
+> Result order: buodxa
 > Result prefix visibility: buox
 > Auto saving: On
 >
 <<<<<<<<<<<<<<<<<<<<<<< COMMANDS >>>>>>>>>>>>>>>>>>>>>>>
 > help... Lists this help.
 > set_inputformat... Sets the default input format (when no prefix is stated). Parameters: <Input format label (see below "INPUT PREFIXES")>. Example: 'set_inputformat hexadecimal'
-> set_inputprefix... Changes the prefix of an input format to your preferred string. Parameters: <Input format label (see below "INPUT PREFIXES")> <string>. Example: 'set_inputprefix octal 0w'
+> set_inputprefix... Changes the prefix of an input format to your preferred string. Parameters: <Input format label (see below "INPUT PREFIXES")> <string>. Example: 'set_inputprefix octal :w'
 > set_operator... Changes an operator to your preferred string. Parameters: <Operator label (see below "OPERATORS")> <string>. Example: 'set_operator exponential ^'
 > set_resultorder... Sets the order of results (not listed = not visible). Parameters: <One or more input format short names (see below "INPUT PREFIXES")>. Example: 'set_resultorder dxb'
 > set_resultprefixvis... Sets the visibility of prefixes on results (not listed = not visible). Parameters: <One or more input format short names (see below "INPUT PREFIXES")>. Example: 'set_resultprefixvis db'
@@ -30,12 +30,12 @@ The following is the output of the 'help' function.
 > exit... Exits the program.
 >
 <<<<<<<<<<<<<<<<<<<< INPUT PREFIXES >>>>>>>>>>>>>>>>>>>>
-> binary (short b)... 0b
-> dual (short u)... 0u
-> octal (short o)... 0o
-> decimal (short d)... 0d
-> hexadecimal (short x)... 0x
-> ascii (short a)... 0a
+> binary (short b)... :b
+> dual (short u)... :u
+> octal (short o)... :o
+> decimal (short d)... :d
+> hexadecimal (short x)... :x
+> ascii (short a)... :a
 >
 <<<<<<<<<<<<<<<<<<<<<< OPERATORS >>>>>>>>>>>>>>>>>>>>>>>
 > add... +
@@ -76,22 +76,22 @@ The following is the output of the 'help' function.
 
 # Examples
 ## Calculations
-Input, prefixed with '0x', you can enter hexadecimal numbers
+Input, prefixed with ':x', you can enter hexadecimal numbers
 ```
-0xDEADBEEF
+:xDEADBEEF
 ```
 Output, the output is configured to print the result with the following representations: decimal, hexadecimal, binary
 ```
-| 3735928559 | 0xDEADBEEF | 0b11011110101011011011111011101111 |
+| 3735928559 | :xDEADBEEF | :b11011110101011011011111011101111 |
 ```
 
-Input, prefixed with '0x' (hexadecimal), '0b' (binary) and '0u' (dual)
+Input, prefixed with ':x' (hexadecimal), ':b' (binary) and ':u' (dual)
 ```
-0xF0 + 3 * 0b1001 & 0u33 ^ 5
+:xF0 + 3 * :b1001 & :u33 ^ 5
 ```
 Output, the output is configured to print the result with the following representations: binary, dual, octal, decimal, hexadecimal, ascii
 ```
-| 0b00001110 | 0u32 | 0o16 | 14 | 0xE | SO (shift out) |
+| :b00001110 | :u32 | :o16 | 14 | :xE | SO (shift out) |
 ```
 
 ## Commands
@@ -111,12 +111,14 @@ Input
 ```
 set_inputformat hexadecimal
 ```
-Result: The default input format is now hexadecimal, which means you don't have to prefix numbers with '0x' anymore.
+Result: The default input format is now hexadecimal, which means you don't have to prefix hexadecimal numbers with ':x' any more.
 
 # Program call parameters
 ```
 -m... Whether to start with a maximized window (optional, 0 = off (default), 1 = on)
 -s... Specify the save file path, please include save file name and extension (optional, default: program location --> 'settings.txt')
+
+Example: Hackulator.exe -m 1, -s C:\Users\Bob\Desktop\settings.dat
 ```
 
 # Thanks

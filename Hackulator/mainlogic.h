@@ -319,7 +319,7 @@ public:
 	{
 		{ COM_HELP,				"help",					"Lists this help",																		"",																											"" },
 		{ COM_SET_INPUTFORMAT,	"set_inputformat",		"Sets the default input format (when no prefix is stated)",								"<Input format label (see below \"" CMAINLOGIC_COMHELP_HEADER_INPPREFIXES_TEXT "\")>",						CMAINLOGIC_INPLABEL_HEXADECIMAL },
-		{ COM_SET_INPUTPREFIX,	"set_inputprefix",		"Changes the prefix of an input format to your preferred string",						"<Input format label (see below \"" CMAINLOGIC_COMHELP_HEADER_INPPREFIXES_TEXT "\")> <string>",				CMAINLOGIC_INPLABEL_OCTAL " 0w" },
+		{ COM_SET_INPUTPREFIX,	"set_inputprefix",		"Changes the prefix of an input format to your preferred string",						"<Input format label (see below \"" CMAINLOGIC_COMHELP_HEADER_INPPREFIXES_TEXT "\")> <string>",				CMAINLOGIC_INPLABEL_OCTAL " :w" },
 		{ COM_SET_OPERATOR,		"set_operator",			"Changes an operator to your preferred string",											"<Operator label (see below \"" CMAINLOGIC_COMHELP_HEADER_OPERATORS_TEXT "\")> <string>",					CMAINLOGIC_OPLABEL_EXPONENTIAL " ^" },
 		{ COM_SET_RESULTORDER,	"set_resultorder",		"Sets the order of results (not listed = not visible)",									"<One or more input format short names (see below \"" CMAINLOGIC_COMHELP_HEADER_INPPREFIXES_TEXT "\")>",	CMAINLOGIC_INPSHORTLABEL_DECIMAL CMAINLOGIC_INPSHORTLABEL_HEXADECIMAL CMAINLOGIC_INPSHORTLABEL_BINARY },
 		{ COM_SET_RESPREFIXVIS,	"set_resultprefixvis",	"Sets the visibility of prefixes on results (not listed = not visible)",				"<One or more input format short names (see below \"" CMAINLOGIC_COMHELP_HEADER_INPPREFIXES_TEXT "\")>",	CMAINLOGIC_INPSHORTLABEL_DECIMAL CMAINLOGIC_INPSHORTLABEL_BINARY },
