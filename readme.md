@@ -120,7 +120,7 @@ Result: The default input format is now hexadecimal, which means you don't have 
 -m... Whether to start with a maximized window (optional, 0 = off (default), 1 = on)
 -s... Specify the save file path, please include save file name and extension (optional, default: program location --> 'settings.txt')
 
-Example: Hackulator.exe -m 1, -s C:\Users\Bob\Desktop\settings.dat
+Example: 'Hackulator.exe -m 1, -s C:\Users\Bob\Desktop\settings.dat'
 ```
 
 # Thanks
